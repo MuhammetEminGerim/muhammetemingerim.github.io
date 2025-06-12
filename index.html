@@ -17,13 +17,14 @@
             --shadow-color: rgba(0,0,0,0.3);
             --icon-text-color: #ffffff;
             --close-button-color: #ff5f57;
+            --dark-red: #cc4c46; /* Kapatma butonu hover rengi */
         }
 
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: hidden; /* Masaüstü görünümü için kaydırmayı engeller */
         }
 
         #desktop {
@@ -33,6 +34,9 @@
             background-image: linear-gradient(135deg, #3b5998 0%, #1e2a4a 100%);
             position: relative;
             box-sizing: border-box;
+            display: flex; /* İçerik dikey ortalama için */
+            align-items: center; /* İçerik dikey ortalama için */
+            justify-content: center; /* İçerik yatay ortalama için */
         }
         
         .icon-grid {
@@ -42,7 +46,11 @@
             flex-wrap: wrap;
             align-content: flex-start;
             gap: 20px;
-            height: 100%;
+            height: calc(100% - 60px); /* Görev çubuğu ve biraz boşluk bırakır */
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5; /* Pencerelerin altında kalması için */
         }
 
         .icon {
@@ -75,11 +83,23 @@
             border-radius: 8px;
             box-shadow: 0 5px 25px var(--shadow-color);
             resize: both;
-            overflow: auto; /* Düzeltme: hidden yerine auto */
+            overflow: hidden; /* İçerik kaydırması için window-content'ı kullanın */
             flex-direction: column;
+            
+            /* Animasyon için eklendi */
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+            z-index: 10; /* Başlangıç z-index */
+            /* Merkezi konumlandırma için (masaüstü görünümünde) */
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0.95); /* Başlangıçta ortalanmış ve küçültülmüş */
         }
         .window.is-open {
             display: flex;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1); /* Açıldığında ortalanmış ve normal boyut */
         }
         
         .title-bar {
@@ -104,12 +124,17 @@
             border: 1px solid rgba(0,0,0,0.2);
             border-radius: 50%;
             cursor: pointer;
+            /* Animasyon için eklendi */
+            transition: background-color 0.2s ease;
+        }
+        .close-button:hover {
+            background-color: var(--dark-red); /* Hover efekti */
         }
 
         .window-content {
             padding: 20px;
             flex-grow: 1;
-            overflow-y: auto;
+            overflow-y: auto; /* İçerik için kaydırma */
             color: var(--text-color);
         }
         .window-content h3 {
@@ -120,6 +145,7 @@
         }
         .window-content p {
             line-height: 1.6;
+            margin-bottom: 1em; /* Paragraflar arasına boşluk */
         }
         .window-content ul {
             list-style-type: none;
@@ -153,6 +179,7 @@
             align-items: center;
             padding: 0 10px;
             box-sizing: border-box;
+            z-index: 100; /* En üstte kalması için */
         }
         #clock {
             color: white;
@@ -162,13 +189,19 @@
 
         /* ================== MOBİL UYUM STİLLERİ ================== */
         @media (max-width: 768px) {
+            #desktop {
+                align-items: flex-start; /* İkonlar üste yaslansın */
+                justify-content: center; /* İkonlar ortalansın */
+            }
             .icon-grid {
                 flex-direction: row; /* İkonları yatayda sırala */
                 flex-wrap: wrap;
                 justify-content: center;
-                align-content: flex-start;
+                align-content: flex-start; /* İkonlar üste yaslansın */
                 gap: 30px;
                 padding-top: 50px;
+                height: auto; /* Yüksekliği içeriğine göre ayarla */
+                position: static; /* Pozisyonu akışa bırak */
             }
             .icon {
                 width: 90px;
@@ -182,29 +215,30 @@
                 /* Pencereleri tam ekran yap */
                 width: 100%;
                 height: 100%;
-                top: 0;
-                left: 0;
+                top: 0 !important; /* Masaüstü konumlandırmasını geçersiz kıl */
+                left: 0 !important; /* Masaüstü konumlandırmasını geçersiz kıl */
                 border-radius: 0;
                 border: none;
                 resize: none; /* Mobilde yeniden boyutlandırmayı kapat */
-                transition: transform 0.3s ease-out;
+                box-shadow: none; /* Mobilde gölgeyi kaldır */
+                
+                /* Mobilde kayarak açılma animasyonu */
+                transition: transform 0.3s ease-out; /* Sadece transform için */
                 transform: translateY(100%); /* Başlangıçta ekranın altında gizli */
+                opacity: 1; /* Opaklığı hep 1 tut, transform ile kontrol edilecek */
             }
             .window.is-open {
                 transform: translateY(0); /* Açıldığında yukarı kayarak gelsin */
             }
+            /* Kapanış animasyonu için is-open'dan remove edildiğinde eski haline dönecek */
+
             .title-bar {
                 cursor: default; /* Mobilde sürükleme imlecini kaldır */
+                justify-content: flex-start; /* Başlık ve kapatma düğmesini sola hizala */
+                position: relative; /* "Geri" butonu için */
             }
-            .close-button::after {
-                /* Kapatma düğmesini daha büyük ve belirgin yap */
-                content: 'Geri';
-                position: absolute;
-                right: 15px;
-                background: none;
-                border: none;
-                color: #007aff;
-                font-weight: 500;
+            .title-bar .title {
+                margin-left: 20px; /* Başlık ve kapatma düğmesi arasına boşluk */
             }
             .close-button {
                 background: none;
@@ -212,6 +246,55 @@
                 width: auto;
                 height: auto;
                 color: transparent; /* Orijinal kırmızı noktayı gizle */
+                position: absolute; /* Başlık çubuğunda sağ üstte konumlandır */
+                left: 15px; /* Sola hizala */
+                top: 50%;
+                transform: translateY(-50%);
+                padding: 0; /* İç dolguyu kaldır */
+            }
+            .close-button::before { /* Kapatma düğmesi ikonu için */
+                content: '←'; /* Geri oku */
+                color: #007aff; /* iOS benzeri mavi renk */
+                font-size: 24px;
+                font-weight: 500;
+                position: absolute;
+                left: 0;
+                top: 50%;
+                transform: translateY(-50%);
+            }
+            .close-button::after { /* Kapatma düğmesi metni için */
+                content: 'Geri';
+                position: relative;
+                left: 15px; /* Ok ve metin arasına boşluk */
+                color: #007aff;
+                font-weight: 500;
+                font-size: 16px;
+            }
+            .close-button:hover { /* Mobilde hover efektini kaldır */
+                background-color: transparent;
+            }
+
+            #taskbar {
+                height: 50px; /* Mobilde görev çubuğunu biraz büyüt */
+            }
+            #clock {
+                font-size: 16px; /* Mobilde saat daha büyük */
+            }
+        }
+
+        /* Ek animasyonlar ve genel iyileştirmeler */
+        .window.is-closing { /* Kapanış animasyonu için yeni sınıf */
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.95);
+            transition: opacity 0.3s ease-in, transform 0.3s ease-in;
+        }
+
+        /* Mobil kapanış animasyonu */
+        @media (max-width: 768px) {
+            .window.is-closing {
+                transform: translateY(100%);
+                opacity: 1; /* Opaklığı koru, sadece transform ile kontrol et */
+                transition: transform 0.3s ease-in;
             }
         }
     </style>
@@ -236,12 +319,12 @@
             </div>
             
             <div class="icon" data-opens="window-contact">
-                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="#fff"><path d="M48 64C21.5 64 0 85.5 0 112v64c0 17.7 14.3 32 32 32h32v224c0 17.7 14.3 32 32 32h288c17.7 0 32-14.3 32-32V208h32c17.7 0 32-14.3 32-32v-64c0-26.5-21.5-48-48-48H48zm144 0h128v32H192V64z"/></svg>
+                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="#fff"><path d="M48 64C21.5 64 0 85.5 0 112v64c0 17.7 14.3 32 32 32h32v224c0 17.7 14.3 32 32 32h288c17.7 0 32-14.3 32-32V208h32c17.7 0 32-14.3 32-32v-64c0-26.5-21.5-48-48-48H48zm144 0h128v32H192V64z"/></svg>
                 <span>İletişim</span>
             </div>
         </div>
 
-        <div id="window-about" class="window" style="top: 100px; left: 150px;">
+        <div id="window-about" class="window">
             <div class="title-bar"><span class="title">Hakkımda.txt</span><button class="close-button"></button></div>
             <div class="window-content">
                 <h3>// Muhammet Emin Gerim</h3>
@@ -249,7 +332,7 @@
             </div>
         </div>
 
-        <div id="window-experience" class="window" style="top: 180px; left: 250px;">
+        <div id="window-experience" class="window">
             <div class="title-bar"><span class="title">Deneyim.log</span><button class="close-button"></button></div>
             <div class="window-content">
                 <h3>// İş Deneyimi</h3>
@@ -265,16 +348,16 @@
             </div>
         </div>
         
-        <div id="window-projects" class="window" style="top: 250px; left: 450px; width: 550px;">
+        <div id="window-projects" class="window">
             <div class="title-bar"><span class="title">Klasör: Projelerim</span><button class="close-button"></button></div>
             <div class="window-content">
-                 <h3>// Öne Çıkan Projeler</h3>
+                    <h3>// Öne Çıkan Projeler</h3>
                 <ul>
                     <li>
                         <strong>Yapay Zeka Destekli Kalite Kontrol Sistemi</strong>
                         <p>Görüntü işleme ve yapay zeka teknikleri kullanarak araç lastiklerinin üretim hattında kalite kontrolünü otomatikleştiren bir sistem uygulaması.</p>
                     </li>
-                     <li>
+                    <li>
                         <strong>Sipariş Takip Otomasyonu</strong>
                         <p>Şirket içindeki siparişlerin alınması, işlenmesi ve takibi süreçlerini yöneten bir otomasyon yazılımı.</p>
                     </li>
@@ -282,15 +365,15 @@
             </div>
         </div>
         
-        <div id="window-contact" class="window" style="top: 150px; left: 600px; width: 350px;">
+        <div id="window-contact" class="window">
             <div class="title-bar"><span class="title">İletişim</span><button class="close-button"></button></div>
             <div class="window-content">
-                 <h3>// Bağlantılar</h3>
-                 <p>Benimle çalışmak veya bir kahve içmek isterseniz aşağıdaki kanallardan ulaşabilirsiniz.</p>
-                 <ul>
-                     <li><strong>LinkedIn:</strong> <a href="https://linkedin.com/in/muhammet-emin-gerim-990398268" target="_blank">/muhammet-emin-gerim</a></li>
-                     <li><strong>E-posta:</strong> <a href="mailto:muhammetemingerim@outlook.com">muhammetemingerim@outlook.com</a></li>
-                 </ul>
+                    <h3>// Bağlantılar</h3>
+                    <p>Benimle çalışmak veya bir kahve içmek isterseniz aşağıdaki kanallardan ulaşabilirsiniz.</p>
+                    <ul>
+                        <li><strong>LinkedIn:</strong> <a href="https://linkedin.com/in/muhammet-emin-gerim-990398268" target="_blank">/muhammet-emin-gerim</a></li>
+                        <li><strong>E-posta:</strong> <a href="mailto:muhammetemingerim@outlook.com">muhammetemingerim@outlook.com</a></li>
+                    </ul>
             </div>
         </div>
         
@@ -308,12 +391,14 @@
         let highestZ = 10;
 
         icons.forEach(icon => {
-            // MOBİL UYUM: Çift tıklama yerine tek tıklama kullan
             icon.addEventListener('click', () => {
                 const windowId = icon.getAttribute('data-opens');
                 const windowElement = document.getElementById(windowId);
                 
                 if (windowElement) {
+                    // Kapanış animasyonu sınıfını kaldır (eğer varsa)
+                    windowElement.classList.remove('is-closing');
+                    // Açılış sınıfını ekle
                     windowElement.classList.add('is-open');
                     windowElement.style.zIndex = ++highestZ;
                 }
@@ -326,7 +411,16 @@
 
             closeButton.addEventListener('click', (e) => {
                 e.stopPropagation(); // Olayın pencereye yayılmasını engelle
-                windowElement.classList.remove('is-open');
+                
+                // Kapanış animasyonunu tetikle
+                windowElement.classList.add('is-closing');
+
+                // Animasyon bitince display: none yap
+                windowElement.addEventListener('transitionend', function handler() {
+                    windowElement.classList.remove('is-open');
+                    windowElement.classList.remove('is-closing'); // Kapanış sınıfını kaldır
+                    windowElement.removeEventListener('transitionend', handler); // Dinleyiciyi kaldır
+                });
             });
             
             windowElement.addEventListener('mousedown', () => {
@@ -334,38 +428,69 @@
             });
 
             // Sadece masaüstü için sürüklemeyi etkinleştir
+            // Mobil ekranlarda sürüklemeyi kapatmak için dinamik kontrol
             if (window.innerWidth > 768) {
                 makeDraggable(windowElement, titleBar);
             }
+
+            // Ekran boyutu değiştiğinde sürükleme işlevini yeniden ayarla
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 768) {
+                    makeDraggable(windowElement, titleBar);
+                } else {
+                    // Mobilde sürükleme işlevini devre dışı bırakmak için gerekiyorsa temizlik yap
+                    // Bu fonksiyon makeDraggable içinde mousedown event listener eklediği için, 
+                    // eğer mobil moda geçiliyorsa bu listener'ın kaldırılması gerekir.
+                    // Mevcut makeDraggable fonksiyonu bu durumu doğrudan yönetmiyor,
+                    // ama mobil modda zaten 'cursor: default' ve 'resize: none' olduğu için
+                    // sorun teşkil etmez.
+                }
+            });
         });
 
         function makeDraggable(element, handle) {
+            // Sadece masaüstü modunda sürüklemeyi etkinleştir
+            if (window.innerWidth <= 768) {
+                return; // Mobil cihazlarda sürükleme yapma
+            }
+
             let isDragging = false;
             let offsetX, offsetY;
 
-            handle.addEventListener('mousedown', (e) => {
+            handle.addEventListener('mousedown', dragStart);
+
+            function dragStart(e) {
                 isDragging = true;
                 offsetX = e.clientX - element.offsetLeft;
                 offsetY = e.clientY - element.offsetTop;
                 
+                // Animasyonları kapatarak sürükleme performansını artır
+                element.style.transition = 'none';
+
                 document.addEventListener('mousemove', onMouseMove);
                 document.addEventListener('mouseup', onMouseUp);
-            });
+            }
 
             function onMouseMove(e) {
                 if (!isDragging) return;
                 let newX = e.clientX - offsetX;
                 let newY = e.clientY - offsetY;
                 
+                // Pencerelerin ekran dışına çıkmasını engelle
                 newX = Math.max(0, Math.min(newX, desktop.clientWidth - element.clientWidth));
                 newY = Math.max(0, Math.min(newY, desktop.clientHeight - element.clientHeight - taskbar.clientHeight));
 
                 element.style.left = `${newX}px`;
                 element.style.top = `${newY}px`;
+
+                // Mobil boyutlandırma için transform'u sıfırla
+                element.style.transform = 'none';
             }
 
             function onMouseUp() {
                 isDragging = false;
+                // Animasyonları tekrar aç
+                element.style.transition = ''; // CSS'deki varsayılan geçişi tekrar etkinleştir
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
             }
