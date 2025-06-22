@@ -1,331 +1,401 @@
 <!DOCTYPE html>
-<html lang="tr" class="scroll-smooth">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Muhammet Emin Gerim | Kişisel Portföy</title>
+    <title>Flappy Face Oyunu</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- face-api.js kütüphanesini yüklüyoruz -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <!-- Tone.js kütüphanesini ses için yüklüyoruz -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #111827; /* Koyu Gri Arka Plan */
-            color: #d1d5db; /* Açık Gri Metin */
+            font-family: 'Press Start 2P', cursive;
+            background-color: #0f172a;
+            color: #f8fafc;
         }
-        .glassmorphism {
-            background: rgba(31, 41, 55, 0.6); /* Yarı saydam arka plan */
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        canvas {
+            background-color: #87CEEB; /* Sabit arka plan rengi */
+            background-size: cover;
+            background-position: center;
+            display: block;
+            margin: 0 auto;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         }
-        .accent-color {
-            color: #38bdf8; /* Vurgu Rengi - Açık Mavi */
+        .btn {
+            transition: all 0.3s ease;
         }
-        .accent-bg {
-            background-color: #38bdf8;
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
-        .section-title {
-            font-size: 2.25rem; /* 36px */
-            font-weight: 700;
-            margin-bottom: 2rem;
-            text-align: center;
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
-        .card {
-            background-color: #1f2937; /* Kart Arka Planı */
-            border-radius: 0.75rem; /* 12px */
+        .modal {
+            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: #1e293b;
             padding: 2rem;
-            border: 1px solid #374151;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px -3px rgba(56, 189, 248, 0.1), 0 4px 6px -2px rgba(56, 189, 248, 0.05);
-        }
-        .tag {
-            display: inline-block;
-            background-color: #374151;
-            color: #d1d5db;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-            font-weight: 500;
+            border-radius: 1rem;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 90%;
+            width: 500px;
         }
     </style>
 </head>
-<body class="antialiased">
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
 
-    <!-- Header & Navbar -->
-    <header class="glassmorphism sticky top-0 z-50">
-        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <a href="#" class="text-xl font-bold text-white">Muhammet Emin Gerim</a>
-            <div class="hidden md:flex space-x-8">
-                <a href="#hakkimda" class="hover:text-sky-400 transition-colors">Hakkımda</a>
-                <a href="#deneyim" class="hover:text-sky-400 transition-colors">Deneyim</a>
-                <a href="#projeler" class="hover:text-sky-400 transition-colors">Projeler</a>
-                <a href="#yetenekler" class="hover:text-sky-400 transition-colors">Yetenekler</a>
-                <a href="#iletisim" class="hover:text-sky-400 transition-colors">İletişim</a>
-            </div>
-            <button id="mobile-menu-button" class="md:hidden text-white">
-                <i data-lucide="menu"></i>
+    <h1 class="text-4xl md:text-5xl mb-4 text-center">Flappy Face</h1>
+    <p class="mb-4 text-center">Kendi yüzünle oyna!</p>
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto">
+        <canvas id="gameCanvas" width="800" height="600" class="w-full h-auto"></canvas>
+        <div id="score" class="text-center text-3xl mt-4">Skor: 0</div>
+    </div>
+    
+    <div id="controls" class="mt-6 flex flex-col sm:flex-row items-center justify-center flex-wrap gap-4">
+        <div class="flex flex-col items-center">
+            <label for="imageUpload" class="btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg cursor-pointer">
+                1. Fotoğraf Yükle
+            </label>
+            <input type="file" id="imageUpload" class="hidden" accept="image/*">
+            <img id="facePreview" class="mt-4 rounded-full border-4 border-blue-400 w-24 h-24 object-cover hidden" alt="Yüz Önizlemesi">
+        </div>
+        <button id="startGameBtn" class="btn bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg" disabled>
+            2. Oyunu Başlat
+        </button>
+    </div>
+
+    <!-- Modals -->
+    <div id="loadingModal" class="modal hidden">
+        <div class="modal-content">
+            <p id="loadingText">Yükleniyor...</p>
+            <div class="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-blue-500 mx-auto mt-4"></div>
+        </div>
+    </div>
+
+    <div id="gameOverModal" class="modal hidden">
+        <div class="modal-content">
+            <h2 class="text-4xl text-red-500 mb-4">Oyun Bitti!</h2>
+            <p id="finalScore" class="text-2xl mb-6">Skorun: 0</p>
+            <button id="restartBtn" class="btn bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-3 px-6 rounded-lg">
+                Yeniden Başla
             </button>
-        </nav>
-        <!-- Mobile Menu -->
-        <div id="mobile-menu" class="hidden md:hidden">
-             <a href="#hakkimda" class="block py-2 px-4 text-sm hover:bg-gray-700">Hakkımda</a>
-             <a href="#deneyim" class="block py-2 px-4 text-sm hover:bg-gray-700">Deneyim</a>
-             <a href="#projeler" class="block py-2 px-4 text-sm hover:bg-gray-700">Projeler</a>
-             <a href="#yetenekler" class="block py-2 px-4 text-sm hover:bg-gray-700">Yetenekler</a>
-             <a href="#iletisim" class="block py-2 px-4 text-sm hover:bg-gray-700">İletişim</a>
         </div>
-    </header>
-
-    <main class="container mx-auto px-6 py-12">
-
-        <!-- Hero Section -->
-        <section id="hero" class="text-center min-h-[calc(100vh-80px)] flex flex-col justify-center items-center">
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">Muhammet Emin Gerim</h1>
-            <p class="text-xl md:text-2xl mb-8 accent-color">Yazılım Geliştirici</p>
-            <p class="max-w-2xl mx-auto mb-8 text-gray-400">
-                Teknolojiye tutkulu, problem çözmeyi seven ve yeni şeyler öğrenmeye hevesli bir yazılım geliştiriciyim. Web ve otomasyon teknolojileri üzerine kendimi geliştiriyorum.
-            </p>
-            <div class="flex flex-wrap justify-center gap-4">
-                <a href="#iletisim" class="bg-sky-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-sky-600 transition-all duration-300 flex items-center justify-center space-x-2">
-                    <i data-lucide="mail" class="w-5 h-5"></i>
-                    <span>Benimle İletişime Geç</span>
-                </a>
-                 <a href="Muhammet Emin Gerim CV (2).pdf" download class="bg-emerald-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-emerald-700 transition-all duration-300 flex items-center justify-center space-x-2">
-                    <i data-lucide="download" class="w-5 h-5"></i>
-                    <span>CV'mi İndir</span>
-                </a>
-                <a href="https://linkedin.com/in/muhammet-emin-gerim-990398268" target="_blank" class="bg-gray-700 text-white font-bold py-3 px-6 rounded-lg hover:bg-gray-600 transition-all duration-300 flex items-center justify-center space-x-2">
-                    <i data-lucide="linkedin" class="w-5 h-5"></i>
-                    <span>LinkedIn</span>
-                </a>
-            </div>
-        </section>
-
-        <!-- About Me Section -->
-        <section id="hakkimda" class="py-20">
-            <h2 class="section-title text-white">Hakkımda</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
-                <div class="md:col-span-2">
-                    <p class="mb-4">
-                        Bolu Abant İzzet Baysal Üniversitesi Bilgisayar Programcılığı bölümünden mezun oldum. Lise eğitimimi de Bilişim Teknolojileri alanında tamamlayarak yazılım dünyasına erken yaşta adım attım. Öğrenim hayatım boyunca ve stajlarımda edindiğim teorik bilgileri pratik projelerle pekiştirdim.
-                    </p>
-                    <p class="mb-4">
-                        Özellikle C#, .NET ve web teknolojileri (HTML, CSS, JavaScript) üzerine yoğunlaştım. Veritabanı yönetimi için MySQL kullanma tecrübem bulunmaktadır. Takım çalışmasına yatkın, sorumluluk sahibi ve kariyer hedefleri olan biriyim.
-                    </p>
-                    <p>
-                        Boş zamanlarımda yeni teknolojileri araştırmayı, açık kaynaklı projelere göz atmayı ve kendimi geliştirecek online kurslara katılmayı seviyorum.
-                    </p>
-                </div>
-                 <div class="md:col-span-1 flex justify-center">
-                    <div class="w-64 h-64 rounded-full bg-gray-800 border-4 border-sky-500 flex items-center justify-center">
-                        <i data-lucide="code-2" class="w-32 h-32 text-sky-500"></i>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Experience Section -->
-        <section id="deneyim" class="py-20">
-            <h2 class="section-title text-white">Deneyim & Eğitim</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <!-- İş Deneyimi -->
-                <div>
-                    <h3 class="text-2xl font-semibold mb-6 text-sky-400 flex items-center gap-3"><i data-lucide="briefcase" class="w-7 h-7"></i>İş Deneyimi</h3>
-                    <div class="space-y-8 relative border-l-2 border-gray-700 pl-8">
-                        <div class="absolute w-3 h-3 bg-sky-500 rounded-full -left-[7px] top-1"></div>
-                        <div class="card">
-                            <p class="text-sm text-gray-400">Eylül 2024 - Şubat 2025</p>
-                            <h4 class="text-xl font-semibold text-white mt-1">Yazılım Geliştirme ve Destek</h4>
-                            <p class="text-gray-300">Digieye Dijitalleştirme Teknolojileri</p>
-                        </div>
-                         <div class="absolute w-3 h-3 bg-sky-500 rounded-full -left-[7px] top-[11.5rem]"></div>
-                        <div class="card">
-                            <p class="text-sm text-gray-400">Temmuz 2024 - Ağustos 2024</p>
-                            <h4 class="text-xl font-semibold text-white mt-1">Yazılım Geliştirme Stajyeri</h4>
-                            <p class="text-gray-300">Digieye Dijitalleştirme Teknolojileri</p>
-                        </div>
-                        <div class="absolute w-3 h-3 bg-sky-500 rounded-full -left-[7px] top-[22rem]"></div>
-                        <div class="card">
-                            <p class="text-sm text-gray-400">Şubat 2024 - Mayıs 2024</p>
-                            <h4 class="text-xl font-semibold text-white mt-1">Bilgi İşlem Stajyeri</h4>
-                            <p class="text-gray-300">Bolu Abant İzzet Baysal Üniversitesi</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Eğitim -->
-                <div>
-                    <h3 class="text-2xl font-semibold mb-6 text-sky-400 flex items-center gap-3"><i data-lucide="graduation-cap" class="w-7 h-7"></i>Eğitim</h3>
-                     <div class="space-y-8 relative border-l-2 border-gray-700 pl-8">
-                        <div class="absolute w-3 h-3 bg-sky-500 rounded-full -left-[7px] top-1"></div>
-                        <div class="card">
-                            <p class="text-sm text-gray-400">2022 - 2024</p>
-                            <h4 class="text-xl font-semibold text-white mt-1">Bilgisayar Programcılığı (Önlisans)</h4>
-                            <p class="text-gray-300">Bolu Abant İzzet Baysal Üniversitesi</p>
-                            <p class="text-sm text-gray-400 mt-2">AGNO: 2.96 / 4.00</p>
-                        </div>
-                        <div class="absolute w-3 h-3 bg-sky-500 rounded-full -left-[7px] top-[13.5rem]"></div>
-                        <div class="card">
-                            <p class="text-sm text-gray-400">2019 - 2022</p>
-                            <h4 class="text-xl font-semibold text-white mt-1">Bilişim Teknolojileri / Web Programcılığı (Lise)</h4>
-                            <p class="text-gray-300">Bolu İzzet Baysal Mesleki ve Teknik Anadolu Lisesi</p>
-                            <p class="text-sm text-gray-400 mt-2">OBP: 82.29 / 100.00</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
-        <!-- Projects Section -->
-        <section id="projeler" class="py-20">
-            <h2 class="section-title text-white">Öne Çıkan Projeler</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="card">
-                    <div class="flex items-center gap-4 mb-4">
-                        <i data-lucide="cpu" class="w-10 h-10 accent-color"></i>
-                        <h3 class="text-xl font-bold text-white">Yapay Zeka Destekli Araç Lastiği Kalite Kontrol Sistemi</h3>
-                    </div>
-                    <p class="text-gray-400">
-                        Digieye'de geliştirilen bu projede, yapay zeka modelleri kullanılarak araç lastiklerinin üretim hattında kalite kontrolünün otonom bir şekilde yapılması hedeflenmiştir. Uygulamanın geliştirme ve destek süreçlerinde görev aldım.
-                    </p>
-                </div>
-                 <div class="card">
-                    <div class="flex items-center gap-4 mb-4">
-                        <i data-lucide="server" class="w-10 h-10 accent-color"></i>
-                        <h3 class="text-xl font-bold text-white">Şirket İçi Sipariş Takip Otomasyonu</h3>
-                    </div>
-                    <p class="text-gray-400">
-                       Şirket içindeki sipariş süreçlerinin başından sonuna kadar dijital olarak takip edilmesini sağlayan otomasyon sisteminin geliştirilmesine hem stajyer hem de destek ekibi üyesi olarak katkıda bulundum.
-                    </p>
-                </div>
-            </div>
-        </section>
-
-
-        <!-- Skills Section -->
-        <section id="yetenekler" class="py-20">
-            <h2 class="section-title text-white">Yeteneklerim</h2>
-            <div class="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8 text-center">
-                <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i class="devicon-csharp-plain text-5xl text-sky-400"></i></div>
-                    <p class="font-semibold text-white">C#</p>
-                </div>
-                <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i class="devicon-mysql-plain text-5xl text-sky-400"></i></div>
-                    <p class="font-semibold text-white">MySQL</p>
-                </div>
-                <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i class="devicon-html5-plain text-5xl text-sky-400"></i></div>
-                    <p class="font-semibold text-white">HTML</p>
-                </div>
-                <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i class="devicon-css3-plain text-5xl text-sky-400"></i></div>
-                    <p class="font-semibold text-white">CSS</p>
-                </div>
-                <div class="flex flex-col items-center space-y-2">
-                   <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i class="devicon-javascript-plain text-5xl text-sky-400"></i></div>
-                    <p class="font-semibold text-white">JavaScript</p>
-                </div>
-                <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i data-lucide="microsoft-office" class="w-12 h-12 text-sky-400"></i></div>
-                    <p class="font-semibold text-white">MS Office</p>
-                </div>
-                <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i data-lucide="hard-drive" class="w-12 h-12 text-sky-400"></i></div>
-                    <p class="font-semibold text-white">Donanım & Destek</p>
-                </div>
-                 <div class="flex flex-col items-center space-y-2">
-                    <div class="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center"><i data-lucide="languages" class="w-12 h-12 text-sky-400"></i></div>
-                    <p class="font-semibold text-white">İngilizce (A2/B1)</p>
-                </div>
-            </div>
-             <!-- Skill icons from devicon.dev -->
-             <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/devicons/devicon@v2.15.1/devicon.min.css">
-        </section>
-
-        <!-- Contact Section -->
-        <section id="iletisim" class="py-20">
-            <h2 class="section-title text-white">İletişime Geçin</h2>
-            <p class="text-center max-w-xl mx-auto mb-12">
-                Proje teklifleri, iş fırsatları veya sadece bir merhaba demek için aşağıdaki kanallardan bana ulaşabilirsiniz.
-            </p>
-            <div class="card max-w-lg mx-auto">
-                <div class="space-y-6">
-                    <a href="mailto:muhammetemingerim@outlook.com" class="flex items-center space-x-4 group">
-                        <i data-lucide="mail" class="w-8 h-8 accent-color"></i>
-                        <span class="text-lg group-hover:text-sky-400 transition-colors">muhammetemingerim@outlook.com</span>
-                    </a>
-                     <a href="tel:+905532356765" class="flex items-center space-x-4 group">
-                        <i data-lucide="phone" class="w-8 h-8 accent-color"></i>
-                        <span class="text-lg group-hover:text-sky-400 transition-colors">+90 553 235 67 65</span>
-                    </a>
-                    <div class="flex items-center space-x-4">
-                        <i data-lucide="map-pin" class="w-8 h-8 accent-color"></i>
-                        <span class="text-lg">Bolu, Türkiye</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-gray-800">
-        <div class="container mx-auto px-6 py-6 text-center text-gray-500">
-            <p>&copy; 2025 Muhammet Emin Gerim. Tüm Hakları Saklıdır.</p>
-        </div>
-    </footer>
+    </div>
 
     <script>
-        // Lucide Icons
-        lucide.createIcons();
+        // DOM Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const imageUpload = document.getElementById('imageUpload');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const facePreview = document.getElementById('facePreview');
+        const loadingModal = document.getElementById('loadingModal');
+        const loadingText = document.getElementById('loadingText');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const finalScoreDisplay = document.getElementById('finalScore');
 
-        // Mobile Menu Toggle
-        const mobileMenuButton = document.getElementById('mobile-menu-button');
-        const mobileMenu = document.getElementById('mobile-menu');
-
-        mobileMenuButton.addEventListener('click', () => {
-            mobileMenu.classList.toggle('hidden');
-        });
-
-        // Close mobile menu when a link is clicked
-        document.querySelectorAll('#mobile-menu a').forEach(link => {
-            link.addEventListener('click', () => {
-                mobileMenu.classList.add('hidden');
-            });
-        });
+        // Game Variables
+        let player, pipes, score, gameState, animationFrameId;
+        const gravity = 0.5;
+        const jump = -8;
+        const pipeWidth = 80;
+        const pipeGap = 200;
+        const pipeSpeed = 4;
+        const pipeInterval = 120;
+        let frameCount = 0;
         
-        // Simple fade-in animation on scroll
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('fade-in');
-                }
-            });
-        }, { threshold: 0.1 });
+        let playerImage = new Image();
+        playerImage.src = 'https://placehold.co/60x60/FBBF24/000000?text=YUZ'; 
 
-        document.querySelectorAll('section').forEach(section => {
-            section.classList.add('fade-in-start');
-            observer.observe(section);
+        const GAME_STATES = { MENU: 'menu', READY: 'ready', PLAYING: 'playing', GAME_OVER: 'game_over' };
+
+        // Audio Variables
+        let scoreSound, gameOverSound;
+        let isAudioSetup = false;
+
+        // Sesleri Ayarlama Fonksiyonu
+        function setupAudio() {
+            scoreSound = new Tone.Synth({
+                oscillator: { type: 'sine' },
+                envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 }
+            }).toDestination();
+
+            gameOverSound = new Tone.Synth({
+                oscillator: { type: 'fatsquare' },
+                envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.4 }
+            }).toDestination();
+        }
+
+        // Face Detection
+        async function loadFaceApiModels() {
+            loadingModal.style.display = 'flex';
+            loadingText.textContent = 'Yüz tanıma modelleri yükleniyor...'
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+            try {
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                console.log("Modeller yüklendi.");
+                loadingModal.style.display = 'none';
+            } catch (error) {
+                console.error("Modeller yüklenirken hata oluştu:", error);
+                loadingText.textContent = 'Modeller yüklenemedi. Sayfayı yenileyin.';
+            }
+        }
+        
+        // Game Logic
+        class Player {
+            constructor() {
+                this.x = 150;
+                this.y = canvas.height / 2;
+                this.width = 60;
+                this.height = 60;
+                this.velocityY = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2, true);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(playerImage, this.x, this.y, this.width, this.height);
+                ctx.restore();
+            }
+
+            update() {
+                this.velocityY += gravity;
+                this.y += this.velocityY;
+
+                if (this.y + this.height > canvas.height || this.y < 0) {
+                    endGame();
+                }
+            }
+
+            jump() {
+                this.velocityY = jump;
+            }
+        }
+
+        class Pipe {
+            constructor() {
+                this.x = canvas.width;
+                this.width = pipeWidth;
+                this.height = Math.random() * (canvas.height - pipeGap - 100) + 50;
+                this.passed = false;
+            }
+
+            draw() {
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(this.x, 0, this.width, this.height);
+                const lowerPipeY = this.height + pipeGap;
+                ctx.fillRect(this.x, lowerPipeY, this.width, canvas.height - lowerPipeY);
+
+                ctx.fillStyle = '#16a34a';
+                ctx.fillRect(this.x - 5, this.height - 20, this.width + 10, 20);
+                ctx.fillRect(this.x - 5, this.height + pipeGap, this.width + 10, 20);
+            }
+
+            update() {
+                this.x -= pipeSpeed;
+            }
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            pipes.forEach(pipe => pipe.draw());
+            player.draw();
+
+            if (gameState === GAME_STATES.PLAYING) {
+                player.update();
+                frameCount++;
+                if (frameCount % pipeInterval === 0) {
+                    pipes.push(new Pipe());
+                }
+                
+                for (let i = pipes.length - 1; i >= 0; i--) {
+                    pipes[i].update();
+                    if (pipes[i].x + pipeWidth < 0) {
+                        pipes.splice(i, 1);
+                    }
+                    if (pipes[i].x + pipeWidth < player.x && !pipes[i].passed) {
+                        score++;
+                        scoreDisplay.textContent = `Skor: ${score}`;
+                        pipes[i].passed = true;
+                        // Skor sesi
+                        if (scoreSound) {
+                            scoreSound.triggerAttackRelease("C5", "8n");
+                        }
+                    }
+                    if (checkCollision(player, pipes[i])) {
+                        endGame();
+                        return;
+                    }
+                }
+            } else if (gameState === GAME_STATES.READY) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.font = "30px 'Press Start 2P'";
+                ctx.fillStyle = "#FFFFFF";
+                ctx.textAlign = "center";
+                ctx.fillText("Başlamak için Tıkla", canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillText("veya Boşluk Tuşuna Bas", canvas.width / 2, canvas.height / 2 + 20);
+            }
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+        
+        function checkCollision(player, pipe) {
+            const playerCenterX = player.x + player.width / 2;
+            const playerCenterY = player.y + player.height / 2;
+            const playerRadius = player.width / 2;
+
+            if (playerCenterX + playerRadius > pipe.x && playerCenterX - playerRadius < pipe.x + pipe.width) {
+                if (playerCenterY - playerRadius < pipe.height || playerCenterY + playerRadius > pipe.height + pipeGap) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function startGame() {
+            gameState = GAME_STATES.READY;
+            player = new Player();
+            pipes = [];
+            score = 0;
+            frameCount = 0;
+            scoreDisplay.textContent = 'Skor: 0';
+            gameOverModal.style.display = 'none';
+            document.getElementById('controls').style.display = 'none';
+            scoreDisplay.style.display = 'block';
+            
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        }
+
+        function endGame() {
+            if (gameState === GAME_STATES.GAME_OVER) return;
+            gameState = GAME_STATES.GAME_OVER;
+            // Oyun bitme sesi
+            if (gameOverSound) {
+                gameOverSound.triggerAttackRelease("C3", "4n");
+            }
+            cancelAnimationFrame(animationFrameId);
+            finalScoreDisplay.textContent = `Skorun: ${score}`;
+            gameOverModal.style.display = 'flex';
+        }
+
+        function resetGame() {
+            gameState = GAME_STATES.MENU;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            scoreDisplay.style.display = 'block';
+            scoreDisplay.textContent = 'Skor: 0';
+            document.getElementById('controls').style.display = 'flex';
+            gameOverModal.style.display = 'none';
+
+            ctx.font = "24px 'Press Start 2P'";
+            ctx.fillStyle = "#1e293b";
+            ctx.textAlign = "center";
+            ctx.fillText("Oynamak için yüzünü yükle!", canvas.width / 2, canvas.height / 2);
+        }
+        
+        function handleUserAction() {
+            // Tarayıcıların sesleri otomatik başlatmasını engellemek için kullanıcı etkileşimiyle sesleri kuruyoruz.
+            if (!isAudioSetup) {
+                Tone.start();
+                setupAudio();
+                isAudioSetup = true;
+                console.log("Sesler hazır.");
+            }
+
+            if (gameState === GAME_STATES.READY) {
+                gameState = GAME_STATES.PLAYING;
+                player.jump();
+            } else if (gameState === GAME_STATES.PLAYING) {
+                player.jump();
+            }
+        }
+
+        // Event Listeners
+        imageUpload.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            loadingModal.style.display = 'flex';
+            loadingText.textContent = 'Yüz algılanıyor...';
+
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            
+            img.onload = async () => {
+                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions());
+                if (detection) {
+                    const { x, y, width, height } = detection.box;
+                    const faceCanvas = document.createElement('canvas');
+                    const faceCtx = faceCanvas.getContext('2d');
+                    
+                    const padding = width * 0.4;
+                    const cropX = Math.max(0, x - padding);
+                    const cropY = Math.max(0, y - padding);
+                    const cropWidth = width + padding * 2;
+                    const cropHeight = height + padding * 2;
+                    faceCanvas.width = cropWidth;
+                    faceCanvas.height = cropHeight;
+                    faceCtx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                    
+                    playerImage.src = faceCanvas.toDataURL('image/png');
+                    facePreview.src = playerImage.src;
+                    facePreview.style.display = 'block';
+                    
+                    startGameBtn.disabled = false;
+                    loadingModal.style.display = 'none';
+                } else {
+                    loadingText.textContent = 'Yüz bulunamadı! Başka bir fotoğraf deneyin.';
+                    setTimeout(() => { loadingModal.style.display = 'none'; }, 2000);
+                }
+            };
         });
+
+        startGameBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', resetGame);
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                 e.preventDefault();
+                 handleUserAction();
+            }
+        });
+
+        canvas.addEventListener('click', handleUserAction);
+
+        // Initialization
+        window.onload = () => {
+            loadFaceApiModels();
+            resetGame();
+        };
 
     </script>
-    <style>
-        .fade-in-start {
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
-        }
-        .fade-in {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    </style>
 </body>
 </html>
