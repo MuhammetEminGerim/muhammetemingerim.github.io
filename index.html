@@ -1,401 +1,392 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flappy Face Oyunu</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- face-api.js kütüphanesini yüklüyoruz -->
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <!-- Tone.js kütüphanesini ses için yüklüyoruz -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Press Start 2P', cursive;
-            background-color: #0f172a;
-            color: #f8fafc;
-        }
-        canvas {
-            background-color: #87CEEB; /* Sabit arka plan rengi */
-            background-size: cover;
-            background-position: center;
-            display: block;
-            margin: 0 auto;
-            border-radius: 0.5rem;
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        .btn {
-            transition: all 0.3s ease;
-        }
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-        }
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .modal {
-            display: flex;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.7);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-        .modal-content {
-            background-color: #1e293b;
-            padding: 2rem;
-            border-radius: 1rem;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            max-width: 90%;
-            width: 500px;
-        }
-    </style>
-</head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4">
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 
-    <h1 class="text-4xl md:text-5xl mb-4 text-center">Flappy Face</h1>
-    <p class="mb-4 text-center">Kendi yüzünle oyna!</p>
+// Firebase importları
+import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, onSnapshot, doc, deleteDoc, getDocs, where, writeBatch } from "firebase/firestore";
 
-    <div id="game-container" class="w-full max-w-2xl mx-auto">
-        <canvas id="gameCanvas" width="800" height="600" class="w-full h-auto"></canvas>
-        <div id="score" class="text-center text-3xl mt-4">Skor: 0</div>
+// --- Dil Dosyası ---
+// Arayüzdeki tüm metinleri burada yönetiyoruz.
+const uiStrings = {
+    // Header
+    appTitle: { tr: "Yapay Zeka Sanat Stüdyosu", en: "AI Art Studio", de: "KI-Kunststudio" },
+    gallery: { tr: "Galeri", en: "Gallery", de: "Galerie" },
+    // Kontrol Paneli
+    inspirationPanel: { tr: "İlham Panosu", en: "Inspiration Board", de: "Inspirations-Board" },
+    ideaTheme: { tr: "Fikir Teması", en: "Idea Theme", de: "Ideenthema" },
+    getIdea: { tr: "Fikir Ver", en: "Get Idea", de: "Idee holen" },
+    imaginePrompt: { tr: "Hayal Edin (Prompt)", en: "Imagine (Prompt)", de: "Vorstellen (Prompt)" },
+    promptPlaceholder: { tr: "Kristal ormanda parlayan bir geyik...", en: "A glowing deer in a crystal forest...", de: "Ein leuchtender Hirsch in einem Kristallwald..." },
+    boostPrompt: { tr: "Geliştir", en: "Enhance", de: "Verbessern" },
+    negativePrompt: { tr: "İstenmeyenler", en: "Negative Prompt", de: "Negatives Prompt" },
+    negativePromptPlaceholder: { tr: "bulanık, çirkin, metin...", en: "blurry, ugly, text...", de: "unscharf, hässlich, Text..." },
+    artisticStyle: { tr: "Sanatsal Stil", en: "Artistic Style", de: "Künstlerischer Stil" },
+    aspectRatio: { tr: "En-Boy Oranı", en: "Aspect Ratio", de: "Seitenverhältnis" },
+    generate: { tr: "Oluştur", en: "Generate", de: "Erstellen" },
+    generating: { tr: "Oluşturuluyor...", en: "Generating...", de: "Wird erstellt..." },
+    // Görüntü Alanı
+    welcome: { tr: "Sanat Stüdyonuza Hoş Geldiniz", en: "Welcome to your Art Studio", de: "Willkommen in Ihrem Kunststudio" },
+    welcomeSub: { tr: "Yaratıcılığınızı serbest bırakın veya topluluktan ilham alın.", en: "Unleash your creativity or get inspired by the community.", de: "Entfesseln Sie Ihre Kreativität oder lassen Sie sich von der Community inspirieren." },
+    analyzeArt: { tr: "Yorumla", en: "Analyze", de: "Analysieren" },
+    analyzing: { tr: "Yorumlanıyor...", en: "Analyzing...", de: "Wird analysiert..." },
+    analysisReady: { tr: "Yorum Hazır", en: "Analysis Ready", de: "Analyse bereit" },
+    download: { tr: "İndir", en: "Download", de: "Herunterladen" },
+    share: { tr: "Paylaş", en: "Share", de: "Teilen" },
+    sharing: { tr: "Paylaşılıyor...", en: "Sharing...", de: "Wird geteilt..." },
+    shared: { tr: "Paylaşıldı", en: "Shared", de: "Geteilt" },
+    shareToCommunity: { tr: "Toplulukta Paylaş", en: "Share to Community", de: "In der Community teilen" },
+    // Galeri
+    myGallery: { tr: "Galerim", en: "My Gallery", de: "Meine Galerie" },
+    community: { tr: "Topluluk", en: "Community", de: "Community" },
+    noCreations: { tr: "Görüntülenecek eser yok.", en: "No creations to display.", de: "Keine Kreationen zum Anzeigen." },
+    remix: { tr: "Remix'le", en: "Remix", de: "Remixen" },
+    delete: { tr: "Sil", en: "Delete", de: "Löschen" },
+    // Fikir Kategorileri
+    ideaCategories: {
+        tr: ['Fantezi', 'Bilim Kurgu', 'Doğa', 'Soyut', 'Korku'],
+        en: ['Fantasy', 'Sci-Fi', 'Nature', 'Abstract', 'Horror'],
+        de: ['Fantasie', 'Sci-Fi', 'Natur', 'Abstrakt', 'Horror'],
+    },
+    // Sanat Stilleri
+    styles: {
+        tr: [{ value: 'photorealistic', label: 'Fotogerçekçi' }, { value: 'anime', label: 'Anime / Manga' }, { value: 'fantasy-art', label: 'Fantastik Sanat' }, { value: 'cyberpunk', label: 'Siberpunk' }, { value: 'oil-painting', label: 'Yağlı Boya Tablo' }, { value: 'watercolor', label: 'Sulu Boya' }, { value: 'pixel-art', label: 'Piksel Sanatı' }, { value: 'low-poly', label: 'Low Poly' }],
+        en: [{ value: 'photorealistic', label: 'Photorealistic' }, { value: 'anime', label: 'Anime / Manga' }, { value: 'fantasy-art', label: 'Fantasy Art' }, { value: 'cyberpunk', label: 'Cyberpunk' }, { value: 'oil-painting', label: 'Oil Painting' }, { value: 'watercolor', label: 'Watercolor' }, { value: 'pixel-art', label: 'Pixel Art' }, { value: 'low-poly', label: 'Low Poly' }],
+        de: [{ value: 'photorealistic', label: 'Fotorealistisch' }, { value: 'anime', label: 'Anime / Manga' }, { value: 'fantasy-art', label: 'Fantasiekunst' }, { value: 'cyberpunk', label: 'Cyberpunk' }, { value: 'oil-painting', label: 'Ölgemälde' }, { value: 'watercolor', label: 'Aquarell' }, { value: 'pixel-art', label: 'Pixel-Kunst' }, { value: 'low-poly', label: 'Low Poly' }],
+    }
+};
+
+// --- Firebase Konfigürasyonu ---
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+// --- Yardımcı Bileşenler ve Fonksiyonlar ---
+const compressImage = (base64Str, quality = 0.8) => new Promise((resolve, reject) => {
+    const img = new Image(); img.src = base64Str;
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1024; const MAX_HEIGHT = 1024;
+        let width = img.width; let height = img.height;
+        if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
+        else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+        canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
+        if (ctx) { ctx.drawImage(img, 0, 0, width, height); resolve(canvas.toDataURL('image/jpeg', quality)); }
+        else { reject(new Error('Canvas context could not be created.')); }
+    };
+    img.onerror = (err) => reject(new Error('Image could not be loaded for compression.'));
+});
+
+const LoadingSpinner = ({ text = "..." }) => (
+  <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
+    <svg className="animate-spin -ml-1 mr-3 h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+    <p className="text-lg text-gray-400">{text}</p>
+  </div>
+);
+
+const Placeholder = ({ lang }) => (
+    <div className="flex flex-col items-center justify-center h-full border-2 border-dashed border-gray-700 rounded-lg bg-gray-900/50 p-8 text-center">
+        <h3 className="text-xl font-semibold text-gray-300">{uiStrings.welcome[lang]}</h3>
+        <p className="text-gray-500 mt-2">{uiStrings.welcomeSub[lang]}</p>
     </div>
-    
-    <div id="controls" class="mt-6 flex flex-col sm:flex-row items-center justify-center flex-wrap gap-4">
-        <div class="flex flex-col items-center">
-            <label for="imageUpload" class="btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg cursor-pointer">
-                1. Fotoğraf Yükle
-            </label>
-            <input type="file" id="imageUpload" class="hidden" accept="image/*">
-            <img id="facePreview" class="mt-4 rounded-full border-4 border-blue-400 w-24 h-24 object-cover hidden" alt="Yüz Önizlemesi">
+);
+
+const ImageDisplay = ({ src, alt, onAnalyze, isAnalyzing, analysis, onDownload, onShare, isShared, isSharing, lang }) => (
+  <div className="w-full h-full flex items-center justify-center relative group">
+    <img src={src} alt={alt} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"/>
+     {src && (
+        <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg">
+          <button onClick={onAnalyze} disabled={isAnalyzing || analysis} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+            {isAnalyzing ? '...' : (analysis ? uiStrings.analysisReady[lang] : `${uiStrings.analyzeArt[lang]} ✨`)}
+          </button>
+          <button onClick={onDownload} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">{uiStrings.download[lang]}</button>
+           <button onClick={onShare} disabled={isShared || isSharing} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+             {isSharing ? '...' : (isShared ? `${uiStrings.shared[lang]} ✔` : `${uiStrings.share[lang]} 🚀`)}
+           </button>
         </div>
-        <button id="startGameBtn" class="btn bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg" disabled>
-            2. Oyunu Başlat
-        </button>
-    </div>
+      )}
+      {analysis && (<div className="absolute bottom-0 p-6"><p className="text-sm text-gray-200 italic">"{analysis}"</p></div>)}
+  </div>
+);
 
-    <!-- Modals -->
-    <div id="loadingModal" class="modal hidden">
-        <div class="modal-content">
-            <p id="loadingText">Yükleniyor...</p>
-            <div class="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-blue-500 mx-auto mt-4"></div>
+const ErrorMessage = ({ message }) => ( <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg shadow-lg z-50">{message}</div> );
+
+const GalleryModal = ({ creations, publicCreations, onClose, onSelect, onDownload, onDelete, onShare, onRemix, activeTab, setActiveTab, userId, lang }) => (
+    <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center" onClick={onClose}>
+        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-11/12 h-5/6 max-w-6xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+                <div className="flex gap-2 border-b-2 border-transparent">
+                    <button onClick={() => setActiveTab('myCreations')} className={`px-4 py-2 rounded-t-lg font-semibold ${activeTab === 'myCreations' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>{uiStrings.myGallery[lang]}</button>
+                    <button onClick={() => setActiveTab('publicCreations')} className={`px-4 py-2 rounded-t-lg font-semibold ${activeTab === 'publicCreations' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>{uiStrings.community[lang]}</button>
+                </div>
+                <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+                {(activeTab === 'myCreations' ? creations : publicCreations).length === 0 ? (<p className="text-gray-500 text-center py-10">{uiStrings.noCreations[lang]}</p>) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {(activeTab === 'myCreations' ? creations : publicCreations).map(creation => (
+                            <div key={creation.id} className="border border-gray-800 rounded-lg overflow-hidden group relative">
+                                <img src={creation.imageUrl} alt={creation.prompt} className="w-full h-48 object-cover cursor-pointer group-hover:opacity-60" onClick={() => onSelect(creation)}/>
+                                <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                                    <button onClick={(e)=>{e.stopPropagation();onDownload(creation.imageUrl, creation.prompt);}} className="bg-green-600 p-3 rounded-full" title={uiStrings.download[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                                    {activeTab==='publicCreations' && creation.userId!==userId && (<button onClick={(e)=>{e.stopPropagation();onRemix(creation);}} className="bg-purple-600 p-3 rounded-full" title={uiStrings.remix[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v16"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button>)}
+                                    {activeTab==='myCreations' && (<>
+                                        {!creation.isShared && (<button onClick={(e)=>{e.stopPropagation();onShare(creation);}} className="bg-blue-600 p-3 rounded-full" title={uiStrings.shareToCommunity[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>)}
+                                        <button onClick={(e)=>{e.stopPropagation();onDelete(creation.id);}} className="bg-red-600 p-3 rounded-full" title={uiStrings.delete[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
+                                    </>)}
+                                </div>
+                                <div className="p-2 bg-gray-900/50"><p className="text-xs text-gray-400 truncate">{creation.prompt}</p></div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     </div>
+);
 
-    <div id="gameOverModal" class="modal hidden">
-        <div class="modal-content">
-            <h2 class="text-4xl text-red-500 mb-4">Oyun Bitti!</h2>
-            <p id="finalScore" class="text-2xl mb-6">Skorun: 0</p>
-            <button id="restartBtn" class="btn bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-3 px-6 rounded-lg">
-                Yeniden Başla
-            </button>
-        </div>
-    </div>
 
-    <script>
-        // DOM Elements
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreDisplay = document.getElementById('score');
-        const imageUpload = document.getElementById('imageUpload');
-        const startGameBtn = document.getElementById('startGameBtn');
-        const restartBtn = document.getElementById('restartBtn');
-        const facePreview = document.getElementById('facePreview');
-        const loadingModal = document.getElementById('loadingModal');
-        const loadingText = document.getElementById('loadingText');
-        const gameOverModal = document.getElementById('gameOverModal');
-        const finalScoreDisplay = document.getElementById('finalScore');
+// --- Ana Uygulama Bileşeni ---
+function App() {
+  // YENİ: Dil state'i ve localStorage entegrasyonu
+  const [language, setLanguage] = useState(localStorage.getItem('yapay-zeka-sanat-studiosu-lang') || 'tr');
 
-        // Game Variables
-        let player, pipes, score, gameState, animationFrameId;
-        const gravity = 0.5;
-        const jump = -8;
-        const pipeWidth = 80;
-        const pipeGap = 200;
-        const pipeSpeed = 4;
-        const pipeInterval = 120;
-        let frameCount = 0;
-        
-        let playerImage = new Image();
-        playerImage.src = 'https://placehold.co/60x60/FBBF24/000000?text=YUZ'; 
+  const [auth, setAuth] = useState(null);
+  const [db, setDb] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [creations, setCreations] = useState([]);
+  const [publicCreations, setPublicCreations] = useState([]); 
+  const [prompt, setPrompt] = useState('');
+  const [negativePrompt, setNegativePrompt] = useState('');
+  const [style, setStyle] = useState('photorealistic');
+  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [imageUrl, setImageUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [showGallery, setShowGallery] = useState(false);
+  const fileInputRef = useRef(null);
+  const [activeGalleryTab, setActiveGalleryTab] = useState('myCreations');
+  const [lastGeneratedCreation, setLastGeneratedCreation] = useState(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [isCreativeBoostLoading, setIsCreativeBoostLoading] = useState(false);
+  const [isIdeaLoading, setIsIdeaLoading] = useState(false);
+  // YENİ: Fikir kategorisi artık state'den yönetiliyor
+  const [ideaCategory, setIdeaCategory] = useState(uiStrings.ideaCategories[language][0]);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+  const [artDescription, setArtDescription] = useState('');
+  const [isInspireLoading, setIsInspireLoading] = useState(false);
 
-        const GAME_STATES = { MENU: 'menu', READY: 'ready', PLAYING: 'playing', GAME_OVER: 'game_over' };
-
-        // Audio Variables
-        let scoreSound, gameOverSound;
-        let isAudioSetup = false;
-
-        // Sesleri Ayarlama Fonksiyonu
-        function setupAudio() {
-            scoreSound = new Tone.Synth({
-                oscillator: { type: 'sine' },
-                envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.1 }
-            }).toDestination();
-
-            gameOverSound = new Tone.Synth({
-                oscillator: { type: 'fatsquare' },
-                envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.4 }
-            }).toDestination();
-        }
-
-        // Face Detection
-        async function loadFaceApiModels() {
-            loadingModal.style.display = 'flex';
-            loadingText.textContent = 'Yüz tanıma modelleri yükleniyor...'
-            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-            try {
-                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-                console.log("Modeller yüklendi.");
-                loadingModal.style.display = 'none';
-            } catch (error) {
-                console.error("Modeller yüklenirken hata oluştu:", error);
-                loadingText.textContent = 'Modeller yüklenemedi. Sayfayı yenileyin.';
-            }
-        }
-        
-        // Game Logic
-        class Player {
-            constructor() {
-                this.x = 150;
-                this.y = canvas.height / 2;
-                this.width = 60;
-                this.height = 60;
-                this.velocityY = 0;
-            }
-
-            draw() {
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2, true);
-                ctx.closePath();
-                ctx.clip();
-                ctx.drawImage(playerImage, this.x, this.y, this.width, this.height);
-                ctx.restore();
-            }
-
-            update() {
-                this.velocityY += gravity;
-                this.y += this.velocityY;
-
-                if (this.y + this.height > canvas.height || this.y < 0) {
-                    endGame();
-                }
-            }
-
-            jump() {
-                this.velocityY = jump;
-            }
-        }
-
-        class Pipe {
-            constructor() {
-                this.x = canvas.width;
-                this.width = pipeWidth;
-                this.height = Math.random() * (canvas.height - pipeGap - 100) + 50;
-                this.passed = false;
-            }
-
-            draw() {
-                ctx.fillStyle = '#22c55e';
-                ctx.fillRect(this.x, 0, this.width, this.height);
-                const lowerPipeY = this.height + pipeGap;
-                ctx.fillRect(this.x, lowerPipeY, this.width, canvas.height - lowerPipeY);
-
-                ctx.fillStyle = '#16a34a';
-                ctx.fillRect(this.x - 5, this.height - 20, this.width + 10, 20);
-                ctx.fillRect(this.x - 5, this.height + pipeGap, this.width + 10, 20);
-            }
-
-            update() {
-                this.x -= pipeSpeed;
-            }
-        }
-
-        function gameLoop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            pipes.forEach(pipe => pipe.draw());
-            player.draw();
-
-            if (gameState === GAME_STATES.PLAYING) {
-                player.update();
-                frameCount++;
-                if (frameCount % pipeInterval === 0) {
-                    pipes.push(new Pipe());
-                }
-                
-                for (let i = pipes.length - 1; i >= 0; i--) {
-                    pipes[i].update();
-                    if (pipes[i].x + pipeWidth < 0) {
-                        pipes.splice(i, 1);
-                    }
-                    if (pipes[i].x + pipeWidth < player.x && !pipes[i].passed) {
-                        score++;
-                        scoreDisplay.textContent = `Skor: ${score}`;
-                        pipes[i].passed = true;
-                        // Skor sesi
-                        if (scoreSound) {
-                            scoreSound.triggerAttackRelease("C5", "8n");
-                        }
-                    }
-                    if (checkCollision(player, pipes[i])) {
-                        endGame();
-                        return;
-                    }
-                }
-            } else if (gameState === GAME_STATES.READY) {
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.font = "30px 'Press Start 2P'";
-                ctx.fillStyle = "#FFFFFF";
-                ctx.textAlign = "center";
-                ctx.fillText("Başlamak için Tıkla", canvas.width / 2, canvas.height / 2 - 20);
-                ctx.fillText("veya Boşluk Tuşuna Bas", canvas.width / 2, canvas.height / 2 + 20);
-            }
-
-            animationFrameId = requestAnimationFrame(gameLoop);
-        }
-        
-        function checkCollision(player, pipe) {
-            const playerCenterX = player.x + player.width / 2;
-            const playerCenterY = player.y + player.height / 2;
-            const playerRadius = player.width / 2;
-
-            if (playerCenterX + playerRadius > pipe.x && playerCenterX - playerRadius < pipe.x + pipe.width) {
-                if (playerCenterY - playerRadius < pipe.height || playerCenterY + playerRadius > pipe.height + pipeGap) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function startGame() {
-            gameState = GAME_STATES.READY;
-            player = new Player();
-            pipes = [];
-            score = 0;
-            frameCount = 0;
-            scoreDisplay.textContent = 'Skor: 0';
-            gameOverModal.style.display = 'none';
-            document.getElementById('controls').style.display = 'none';
-            scoreDisplay.style.display = 'block';
-            
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
-            gameLoop();
-        }
-
-        function endGame() {
-            if (gameState === GAME_STATES.GAME_OVER) return;
-            gameState = GAME_STATES.GAME_OVER;
-            // Oyun bitme sesi
-            if (gameOverSound) {
-                gameOverSound.triggerAttackRelease("C3", "4n");
-            }
-            cancelAnimationFrame(animationFrameId);
-            finalScoreDisplay.textContent = `Skorun: ${score}`;
-            gameOverModal.style.display = 'flex';
-        }
-
-        function resetGame() {
-            gameState = GAME_STATES.MENU;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            scoreDisplay.style.display = 'block';
-            scoreDisplay.textContent = 'Skor: 0';
-            document.getElementById('controls').style.display = 'flex';
-            gameOverModal.style.display = 'none';
-
-            ctx.font = "24px 'Press Start 2P'";
-            ctx.fillStyle = "#1e293b";
-            ctx.textAlign = "center";
-            ctx.fillText("Oynamak için yüzünü yükle!", canvas.width / 2, canvas.height / 2);
-        }
-        
-        function handleUserAction() {
-            // Tarayıcıların sesleri otomatik başlatmasını engellemek için kullanıcı etkileşimiyle sesleri kuruyoruz.
-            if (!isAudioSetup) {
-                Tone.start();
-                setupAudio();
-                isAudioSetup = true;
-                console.log("Sesler hazır.");
-            }
-
-            if (gameState === GAME_STATES.READY) {
-                gameState = GAME_STATES.PLAYING;
-                player.jump();
-            } else if (gameState === GAME_STATES.PLAYING) {
-                player.jump();
-            }
-        }
-
-        // Event Listeners
-        imageUpload.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            loadingModal.style.display = 'flex';
-            loadingText.textContent = 'Yüz algılanıyor...';
-
-            const img = new Image();
-            img.src = URL.createObjectURL(file);
-            
-            img.onload = async () => {
-                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions());
-                if (detection) {
-                    const { x, y, width, height } = detection.box;
-                    const faceCanvas = document.createElement('canvas');
-                    const faceCtx = faceCanvas.getContext('2d');
-                    
-                    const padding = width * 0.4;
-                    const cropX = Math.max(0, x - padding);
-                    const cropY = Math.max(0, y - padding);
-                    const cropWidth = width + padding * 2;
-                    const cropHeight = height + padding * 2;
-                    faceCanvas.width = cropWidth;
-                    faceCanvas.height = cropHeight;
-                    faceCtx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-                    
-                    playerImage.src = faceCanvas.toDataURL('image/png');
-                    facePreview.src = playerImage.src;
-                    facePreview.style.display = 'block';
-                    
-                    startGameBtn.disabled = false;
-                    loadingModal.style.display = 'none';
-                } else {
-                    loadingText.textContent = 'Yüz bulunamadı! Başka bir fotoğraf deneyin.';
-                    setTimeout(() => { loadingModal.style.display = 'none'; }, 2000);
-                }
-            };
+  // YENİ: Dil değiştiğinde localStorage'ı güncelle
+  useEffect(() => {
+    localStorage.setItem('yapay-zeka-sanat-studiosu-lang', language);
+    // Dil değişince fikir kategorisini de o dilin ilk kategorisine ayarla
+    setIdeaCategory(uiStrings.ideaCategories[language][0]);
+  }, [language]);
+  
+  useEffect(() => {
+    if (Object.keys(firebaseConfig).length > 0) {
+        const app = initializeApp(firebaseConfig);
+        const authInstance = getAuth(app); const dbInstance = getFirestore(app);
+        setAuth(authInstance); setDb(dbInstance);
+        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+          if (user) { setUserId(user.uid); } 
+          else { try { if (initialAuthToken) { await signInWithCustomToken(authInstance, initialAuthToken); } 
+          else { await signInAnonymously(authInstance); } } catch (authError){ console.error("Firebase Auth Error:", authError); } }
         });
+        return () => unsubscribe();
+      }
+  }, []);
 
-        startGameBtn.addEventListener('click', startGame);
-        restartBtn.addEventListener('click', resetGame);
-        
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                 e.preventDefault();
-                 handleUserAction();
+  useEffect(() => {
+    if (db && userId) {
+      const creationsRef = collection(db, 'artifacts', appId, 'users', userId, 'creations');
+      const q = query(creationsRef); 
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+        setCreations(data);
+      }, (err) => { setError("Kişisel galeriniz yüklenemedi."); });
+      return () => unsubscribe();
+    }
+  }, [db, userId]);
+  
+  useEffect(() => {
+    if (db && userId) {
+      const publicRef = collection(db, 'artifacts', appId, 'public', 'data', 'creations');
+      const q = query(publicRef);
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        data.sort((a, b) => (b.sharedAt?.toMillis() || 0) - (a.sharedAt?.toMillis() || 0));
+        setPublicCreations(data);
+      }, (err) => { setError("Topluluk galerisi yüklenemedi."); });
+      return () => unsubscribe();
+    }
+  }, [db, userId]);
+
+  const callGemini = async (payload) => {
+      const apiKey = "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!response.ok) throw new Error('API yanıt vermedi veya bir hata oluştu.');
+      return await response.json();
+  };
+
+  const translate = async (text, targetLang) => {
+    if (!text || text.trim() === '') return "";
+    const systemPrompt = `Translate the following text to ${targetLang}. Return only the translated text, without any additional explanations or quotation marks. Do not add any of your own commentary. Text: "${text}"`;
+    try {
+        const result = await callGemini({ contents: [{ role: "user", parts: [{ text: systemPrompt }] }] });
+        if (result.candidates && result.candidates.length > 0) { return result.candidates[0].content.parts[0].text.trim(); }
+        return text;
+    } catch (e) { console.error(`Translation to ${targetLang} failed:`, e); return text; }
+  }
+  
+  const handleDownload = (imageUrl, prompt) => { if (!imageUrl) return; const link = document.createElement('a'); link.href = imageUrl; const fileName = (prompt || 'ai-art').substring(0, 40).replace(/[^a-z0-9-]/gi, '_').toLowerCase(); link.download = `${fileName}.jpg`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
+  const handleDeleteCreation = async (id) => { if(!db || !userId) return; const docRef = doc(db, 'artifacts', appId, 'users', userId, 'creations', id); try { await deleteDoc(docRef); } catch(e) { setError("Eser silinirken bir hata oluştu."); } };
+  const handleShareCreation = async (creationToShare) => {
+      if(!db || !userId || !creationToShare) return;
+      setIsSharing(true);
+      try {
+        const publicCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'creations');
+        await addDoc(publicCollectionRef, { ...creationToShare, originalCreationId: creationToShare.id, userId: userId, sharedAt: new Date() });
+        const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'creations', creationToShare.id);
+        const batch = writeBatch(db); batch.update(userDocRef, { isShared: true }); await batch.commit();
+        setLastGeneratedCreation(prev => ({ ...prev, isShared: true }));
+      } catch(e) { setError("Eser paylaşılırken bir hata oluştu."); } 
+      finally { setIsSharing(false); }
+  };
+  const handleRemix = (creation) => { setPrompt(creation.prompt); setNegativePrompt(creation.negativePrompt || ''); setStyle(creation.style); setAspectRatio(creation.aspectRatio); setImageUrl(''); setArtDescription(''); setShowGallery(false); };
+
+  const handleGetIdea = async () => {
+      setIsIdeaLoading(true); setError(null);
+      const languageName = { tr: "Türkçe", en: "English", de: "Deutsch" }[language] || "English";
+      const systemPrompt = `Bana '${ideaCategory}' temasında, yapay zeka resim oluşturucu için kullanılabilecek, kısa, yaratıcı ve görsel olarak zengin bir ${languageName} prompt (istem) öner. Sadece istemi geri döndür, başka hiçbir açıklama veya tırnak işareti ekleme.`;
+      try {
+          const result = await callGemini({ contents: [{ role: "user", parts: [{ text: systemPrompt }] }] });
+          if (result.candidates && result.candidates.length > 0) setPrompt(result.candidates[0].content.parts[0].text.trim());
+          else throw new Error('Fikir üretilemedi.');
+      } catch (err) { setError(err.message); setTimeout(() => setError(null), 3000); } 
+      finally { setIsIdeaLoading(false); }
+  };
+
+  const handleCreativeBoost = async () => {
+    if (!prompt) return;
+    setIsCreativeBoostLoading(true); setError(null);
+    const systemPrompt = `Aşağıdaki fikri alıp, daha zengin, sinematik ve detaylı bir görsel oluşturma istemine dönüştür. Cevabı orijinal istemle aynı dilde ver. Sadece dönüştürülmüş istemi geri döndür. Fikir: '${prompt}'`;
+    try {
+        const result = await callGemini({ contents: [{ role: "user", parts: [{ text: systemPrompt }] }] });
+        if (result.candidates && result.candidates.length > 0) setPrompt(result.candidates[0].content.parts[0].text.trim());
+        else throw new Error('Yaratıcı istem oluşturulamadı.');
+    } catch (err) { setError(err.message); setTimeout(() => setError(null), 3000); } 
+    finally { setIsCreativeBoostLoading(false); }
+  };
+  
+  const handleAnalyzeImage = async () => {
+    if (!imageUrl) return;
+    setIsAnalysisLoading(true); setError(null);
+    const base64ImageData = imageUrl.split(',')[1];
+    const languageName = { tr: "Türkçe", en: "English", de: "Deutsch" }[language] || "English";
+    const systemPrompt = `Bu görseli sanatsal ve şiirsel bir dille, kısa ve etkileyici bir şekilde ${languageName} olarak yorumla. Sadece yorumu geri döndür.`;
+    const payload = { contents: [{ role: "user", parts: [{ text: systemPrompt }, { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }] }] }; 
+    try {
+        const result = await callGemini(payload);
+        if (result.candidates && result.candidates.length > 0) setArtDescription(result.candidates[0].content.parts[0].text.trim());
+        else throw new Error('Resim yorumlanamadı.');
+    } catch (err) { setError(err.message); setTimeout(() => setError(null), 3000); } 
+    finally { setIsAnalysisLoading(false); }
+  };
+
+  const handleGenerateImage = useCallback(async () => {
+    if (!prompt) { setError("Oluşturmak için bir şeyler yazmalısınız!"); setTimeout(() => setError(null), 3000); return; }
+    setIsLoading(true); setImageUrl(''); setArtDescription(''); setLastGeneratedCreation(null); setError(null);
+    try {
+        const translatedPrompt = await translate(prompt, 'en');
+        const translatedNegativePrompt = await translate(negativePrompt, 'en');
+        let finalPrompt = `${translatedPrompt}, in the style of ${style}`;
+        if(translatedNegativePrompt) finalPrompt += `, avoiding ${translatedNegativePrompt}`;
+        const payload = { instances: [{ prompt: finalPrompt }], parameters: { "sampleCount": 1, "aspectRatio": aspectRatio } };
+        const apiKey = ""; const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!response.ok) { const errorBody = await response.json(); throw new Error(`API Hatası: ${errorBody.error?.message || response.statusText}`); }
+        const result = await response.json();
+        if (result.predictions && result.predictions[0].bytesBase64Encoded) {
+            const originalImageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+            const compressedImageUrl = await compressImage(originalImageUrl);
+            setImageUrl(compressedImageUrl);
+            if(db && userId) {
+                const creationData = { prompt, negativePrompt, style, aspectRatio, imageUrl: compressedImageUrl, createdAt: new Date(), isShared: false };
+                const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userId, 'creations'), creationData);
+                setLastGeneratedCreation({ id: docRef.id, ...creationData });
             }
-        });
+        } else { throw new Error('API\'den geçerli bir resim verisi alınamadı.'); }
+    } catch (err) { console.error("Image Generation Error:", err); setError("Resim oluşturulurken bir hata oluştu."); } 
+    finally { setIsLoading(false); }
+  }, [prompt, negativePrompt, style, aspectRatio, db, userId]);
 
-        canvas.addEventListener('click', handleUserAction);
+  return (
+    <div className="bg-gray-900 text-white min-h-screen font-sans flex flex-col relative overflow-hidden">
+      {error && <ErrorMessage message={error} />}
+      {showGallery && <GalleryModal lang={language} creations={creations} publicCreations={publicCreations} onClose={() => setShowGallery(false)} onDownload={handleDownload} onDelete={handleDeleteCreation} onShare={handleShareCreation} onRemix={handleRemix} activeTab={activeGalleryTab} setActiveTab={setActiveGalleryTab} userId={userId} onSelect={(c) => { setPrompt(c.prompt); setNegativePrompt(c.negativePrompt || ''); setStyle(c.style); setAspectRatio(c.aspectRatio); setImageUrl(c.imageUrl); setArtDescription(c.artDescription || ''); setShowGallery(false); }} />}
 
-        // Initialization
-        window.onload = () => {
-            loadFaceApiModels();
-            resetGame();
-        };
+      <header className="py-4 px-8 border-b border-gray-800 shadow-md w-full flex justify-between items-center">
+        <h1 className="text-2xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-500">{uiStrings.appTitle[language]}</h1>
+        <div className="flex items-center gap-4">
+            <button onClick={() => setShowGallery(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">{uiStrings.gallery[language]}</button>
+            <div className="relative">
+                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="bg-gray-700 text-white py-2 pl-3 pr-8 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
+                    <option value="tr">🇹🇷 Türkçe</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="de">🇩🇪 Deutsch</option>
+                </select>
+            </div>
+        </div>
+      </header>
 
-    </script>
-</body>
-</html>
+      <main className="flex-grow flex flex-col md:flex-row p-4 md:p-8 gap-8">
+        <div className="w-full md:w-1/3 lg:w-1/4 flex flex-col gap-5 bg-gray-900/40 p-6 rounded-lg border border-gray-800">
+          <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+              <label className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.ideaTheme[language]}</label>
+              <div className="flex gap-2">
+                  <select value={ideaCategory} onChange={(e) => setIdeaCategory(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-md p-2.5">
+                    {uiStrings.ideaCategories[language].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <button onClick={handleGetIdea} disabled={isIdeaLoading} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-3 rounded-md">
+                      {isIdeaLoading ? '...' : '✨'}
+                  </button>
+              </div>
+          </div>
+          <div>
+            <label htmlFor="prompt" className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.imaginePrompt[language]}</label>
+            <div className="relative">
+                <textarea id="prompt" rows="5" className="w-full bg-gray-800 border border-gray-700 rounded-md p-2.5" placeholder={uiStrings.promptPlaceholder[language]} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+                <button onClick={handleCreativeBoost} disabled={isCreativeBoostLoading} className="absolute bottom-2 right-2 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1 px-2 rounded-md">
+                   {isCreativeBoostLoading ? '...' : `${uiStrings.boostPrompt[language]} ✨`}
+                </button>
+            </div>
+          </div>
+          <div><label htmlFor="negative-prompt" className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.negativePrompt[language]}</label><input id="negative-prompt" type="text" className="w-full bg-gray-800 border border-gray-700 rounded-md p-2.5" placeholder={uiStrings.negativePromptPlaceholder[language]} value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} /></div>
+          <div><label htmlFor="style" className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.artisticStyle[language]}</label><select id="style" className="w-full bg-gray-800 border border-gray-700 rounded-md p-2.5" value={style} onChange={(e) => setStyle(e.target.value)}>{uiStrings.styles[language].map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}</select></div>
+          <div><label className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.aspectRatio[language]}</label><div className="grid grid-cols-3 gap-2">{['1:1', '16:9', '9:16'].map(ratio => (<button key={ratio} onClick={() => setAspectRatio(ratio)} className={`py-2 px-3 rounded-md text-sm font-semibold ${aspectRatio === ratio ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>{ratio}</button>))}</div></div>
+          <div className="mt-auto pt-4"><button onClick={handleGenerateImage} disabled={isLoading} className="w-full bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
+              {isLoading ? uiStrings.generating[language] : uiStrings.generate[language]}
+              {!isLoading && (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>)}
+              </button>
+          </div>
+        </div>
+
+        <div className="w-full md:w-2/3 lg:w-3/4 flex items-center justify-center bg-black/20 rounded-lg p-4 min-h-[400px] md:min-h-0">
+          {isLoading ? <LoadingSpinner text={uiStrings.generating[language]}/> : (imageUrl ? 
+          <ImageDisplay 
+            lang={language} src={imageUrl} alt={prompt} 
+            onAnalyze={handleAnalyzeImage} isAnalyzing={isAnalysisLoading} analysis={artDescription} 
+            onDownload={() => handleDownload(imageUrl, prompt)}
+            onShare={() => handleShareCreation(lastGeneratedCreation)}
+            isShared={lastGeneratedCreation?.isShared}
+            isSharing={isSharing}
+            /> : <Placeholder lang={language} />)}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+export default App;
