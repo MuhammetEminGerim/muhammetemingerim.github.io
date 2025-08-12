@@ -1,392 +1,1253 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory Defect Reporting System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-// Firebase importları
-import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, onSnapshot, doc, deleteDoc, getDocs, where, writeBatch } from "firebase/firestore";
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
 
-// --- Dil Dosyası ---
-// Arayüzdeki tüm metinleri burada yönetiyoruz.
-const uiStrings = {
-    // Header
-    appTitle: { tr: "Yapay Zeka Sanat Stüdyosu", en: "AI Art Studio", de: "KI-Kunststudio" },
-    gallery: { tr: "Galeri", en: "Gallery", de: "Galerie" },
-    // Kontrol Paneli
-    inspirationPanel: { tr: "İlham Panosu", en: "Inspiration Board", de: "Inspirations-Board" },
-    ideaTheme: { tr: "Fikir Teması", en: "Idea Theme", de: "Ideenthema" },
-    getIdea: { tr: "Fikir Ver", en: "Get Idea", de: "Idee holen" },
-    imaginePrompt: { tr: "Hayal Edin (Prompt)", en: "Imagine (Prompt)", de: "Vorstellen (Prompt)" },
-    promptPlaceholder: { tr: "Kristal ormanda parlayan bir geyik...", en: "A glowing deer in a crystal forest...", de: "Ein leuchtender Hirsch in einem Kristallwald..." },
-    boostPrompt: { tr: "Geliştir", en: "Enhance", de: "Verbessern" },
-    negativePrompt: { tr: "İstenmeyenler", en: "Negative Prompt", de: "Negatives Prompt" },
-    negativePromptPlaceholder: { tr: "bulanık, çirkin, metin...", en: "blurry, ugly, text...", de: "unscharf, hässlich, Text..." },
-    artisticStyle: { tr: "Sanatsal Stil", en: "Artistic Style", de: "Künstlerischer Stil" },
-    aspectRatio: { tr: "En-Boy Oranı", en: "Aspect Ratio", de: "Seitenverhältnis" },
-    generate: { tr: "Oluştur", en: "Generate", de: "Erstellen" },
-    generating: { tr: "Oluşturuluyor...", en: "Generating...", de: "Wird erstellt..." },
-    // Görüntü Alanı
-    welcome: { tr: "Sanat Stüdyonuza Hoş Geldiniz", en: "Welcome to your Art Studio", de: "Willkommen in Ihrem Kunststudio" },
-    welcomeSub: { tr: "Yaratıcılığınızı serbest bırakın veya topluluktan ilham alın.", en: "Unleash your creativity or get inspired by the community.", de: "Entfesseln Sie Ihre Kreativität oder lassen Sie sich von der Community inspirieren." },
-    analyzeArt: { tr: "Yorumla", en: "Analyze", de: "Analysieren" },
-    analyzing: { tr: "Yorumlanıyor...", en: "Analyzing...", de: "Wird analysiert..." },
-    analysisReady: { tr: "Yorum Hazır", en: "Analysis Ready", de: "Analyse bereit" },
-    download: { tr: "İndir", en: "Download", de: "Herunterladen" },
-    share: { tr: "Paylaş", en: "Share", de: "Teilen" },
-    sharing: { tr: "Paylaşılıyor...", en: "Sharing...", de: "Wird geteilt..." },
-    shared: { tr: "Paylaşıldı", en: "Shared", de: "Geteilt" },
-    shareToCommunity: { tr: "Toplulukta Paylaş", en: "Share to Community", de: "In der Community teilen" },
-    // Galeri
-    myGallery: { tr: "Galerim", en: "My Gallery", de: "Meine Galerie" },
-    community: { tr: "Topluluk", en: "Community", de: "Community" },
-    noCreations: { tr: "Görüntülenecek eser yok.", en: "No creations to display.", de: "Keine Kreationen zum Anzeigen." },
-    remix: { tr: "Remix'le", en: "Remix", de: "Remixen" },
-    delete: { tr: "Sil", en: "Delete", de: "Löschen" },
-    // Fikir Kategorileri
-    ideaCategories: {
-        tr: ['Fantezi', 'Bilim Kurgu', 'Doğa', 'Soyut', 'Korku'],
-        en: ['Fantasy', 'Sci-Fi', 'Nature', 'Abstract', 'Horror'],
-        de: ['Fantasie', 'Sci-Fi', 'Natur', 'Abstrakt', 'Horror'],
-    },
-    // Sanat Stilleri
-    styles: {
-        tr: [{ value: 'photorealistic', label: 'Fotogerçekçi' }, { value: 'anime', label: 'Anime / Manga' }, { value: 'fantasy-art', label: 'Fantastik Sanat' }, { value: 'cyberpunk', label: 'Siberpunk' }, { value: 'oil-painting', label: 'Yağlı Boya Tablo' }, { value: 'watercolor', label: 'Sulu Boya' }, { value: 'pixel-art', label: 'Piksel Sanatı' }, { value: 'low-poly', label: 'Low Poly' }],
-        en: [{ value: 'photorealistic', label: 'Photorealistic' }, { value: 'anime', label: 'Anime / Manga' }, { value: 'fantasy-art', label: 'Fantasy Art' }, { value: 'cyberpunk', label: 'Cyberpunk' }, { value: 'oil-painting', label: 'Oil Painting' }, { value: 'watercolor', label: 'Watercolor' }, { value: 'pixel-art', label: 'Pixel Art' }, { value: 'low-poly', label: 'Low Poly' }],
-        de: [{ value: 'photorealistic', label: 'Fotorealistisch' }, { value: 'anime', label: 'Anime / Manga' }, { value: 'fantasy-art', label: 'Fantasiekunst' }, { value: 'cyberpunk', label: 'Cyberpunk' }, { value: 'oil-painting', label: 'Ölgemälde' }, { value: 'watercolor', label: 'Aquarell' }, { value: 'pixel-art', label: 'Pixel-Kunst' }, { value: 'low-poly', label: 'Low Poly' }],
-    }
-};
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+        }
 
-// --- Firebase Konfigürasyonu ---
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        /* Sidebar Styles */
+        .sidebar {
+            width: 280px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 2rem 0;
+            transition: all 0.3s ease;
+        }
 
-// --- Yardımcı Bileşenler ve Fonksiyonlar ---
-const compressImage = (base64Str, quality = 0.8) => new Promise((resolve, reject) => {
-    const img = new Image(); img.src = base64Str;
-    img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1024; const MAX_HEIGHT = 1024;
-        let width = img.width; let height = img.height;
-        if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
-        else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-        canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d');
-        if (ctx) { ctx.drawImage(img, 0, 0, width, height); resolve(canvas.toDataURL('image/jpeg', quality)); }
-        else { reject(new Error('Canvas context could not be created.')); }
-    };
-    img.onerror = (err) => reject(new Error('Image could not be loaded for compression.'));
-});
+        .sidebar.collapsed {
+            width: 80px;
+        }
 
-const LoadingSpinner = ({ text = "..." }) => (
-  <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-    <svg className="animate-spin -ml-1 mr-3 h-12 w-12 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-    <p className="text-lg text-gray-400">{text}</p>
-  </div>
-);
+        .sidebar-header {
+            padding: 0 2rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            padding-bottom: 1rem;
+        }
 
-const Placeholder = ({ lang }) => (
-    <div className="flex flex-col items-center justify-center h-full border-2 border-dashed border-gray-700 rounded-lg bg-gray-900/50 p-8 text-center">
-        <h3 className="text-xl font-semibold text-gray-300">{uiStrings.welcome[lang]}</h3>
-        <p className="text-gray-500 mt-2">{uiStrings.welcomeSub[lang]}</p>
-    </div>
-);
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
-const ImageDisplay = ({ src, alt, onAnalyze, isAnalyzing, analysis, onDownload, onShare, isShared, isSharing, lang }) => (
-  <div className="w-full h-full flex items-center justify-center relative group">
-    <img src={src} alt={alt} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"/>
-     {src && (
-        <div className="absolute inset-0 bg-black/70 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg">
-          <button onClick={onAnalyze} disabled={isAnalyzing || analysis} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
-            {isAnalyzing ? '...' : (analysis ? uiStrings.analysisReady[lang] : `${uiStrings.analyzeArt[lang]} ✨`)}
-          </button>
-          <button onClick={onDownload} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">{uiStrings.download[lang]}</button>
-           <button onClick={onShare} disabled={isShared || isSharing} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
-             {isSharing ? '...' : (isShared ? `${uiStrings.shared[lang]} ✔` : `${uiStrings.share[lang]} 🚀`)}
-           </button>
-        </div>
-      )}
-      {analysis && (<div className="absolute bottom-0 p-6"><p className="text-sm text-gray-200 italic">"{analysis}"</p></div>)}
-  </div>
-);
+        .nav-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem 2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
 
-const ErrorMessage = ({ message }) => ( <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-lg shadow-lg z-50">{message}</div> );
+        .nav-item:hover, .nav-item.active {
+            background: rgba(102, 126, 234, 0.1);
+            border-left-color: #667eea;
+        }
 
-const GalleryModal = ({ creations, publicCreations, onClose, onSelect, onDownload, onDelete, onShare, onRemix, activeTab, setActiveTab, userId, lang }) => (
-    <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center" onClick={onClose}>
-        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-11/12 h-5/6 max-w-6xl flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                <div className="flex gap-2 border-b-2 border-transparent">
-                    <button onClick={() => setActiveTab('myCreations')} className={`px-4 py-2 rounded-t-lg font-semibold ${activeTab === 'myCreations' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>{uiStrings.myGallery[lang]}</button>
-                    <button onClick={() => setActiveTab('publicCreations')} className={`px-4 py-2 rounded-t-lg font-semibold ${activeTab === 'publicCreations' ? 'bg-indigo-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>{uiStrings.community[lang]}</button>
-                </div>
-                <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
-            </div>
-            <div className="p-4 overflow-y-auto">
-                {(activeTab === 'myCreations' ? creations : publicCreations).length === 0 ? (<p className="text-gray-500 text-center py-10">{uiStrings.noCreations[lang]}</p>) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {(activeTab === 'myCreations' ? creations : publicCreations).map(creation => (
-                            <div key={creation.id} className="border border-gray-800 rounded-lg overflow-hidden group relative">
-                                <img src={creation.imageUrl} alt={creation.prompt} className="w-full h-48 object-cover cursor-pointer group-hover:opacity-60" onClick={() => onSelect(creation)}/>
-                                <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                                    <button onClick={(e)=>{e.stopPropagation();onDownload(creation.imageUrl, creation.prompt);}} className="bg-green-600 p-3 rounded-full" title={uiStrings.download[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
-                                    {activeTab==='publicCreations' && creation.userId!==userId && (<button onClick={(e)=>{e.stopPropagation();onRemix(creation);}} className="bg-purple-600 p-3 rounded-full" title={uiStrings.remix[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v16"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg></button>)}
-                                    {activeTab==='myCreations' && (<>
-                                        {!creation.isShared && (<button onClick={(e)=>{e.stopPropagation();onShare(creation);}} className="bg-blue-600 p-3 rounded-full" title={uiStrings.shareToCommunity[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></button>)}
-                                        <button onClick={(e)=>{e.stopPropagation();onDelete(creation.id);}} className="bg-red-600 p-3 rounded-full" title={uiStrings.delete[lang]}><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
-                                    </>)}
-                                </div>
-                                <div className="p-2 bg-gray-900/50"><p className="text-xs text-gray-400 truncate">{creation.prompt}</p></div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
-    </div>
-);
+        .nav-item i {
+            margin-right: 1rem;
+            width: 20px;
+            color: #667eea;
+        }
 
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
 
-// --- Ana Uygulama Bileşeni ---
-function App() {
-  // YENİ: Dil state'i ve localStorage entegrasyonu
-  const [language, setLanguage] = useState(localStorage.getItem('yapay-zeka-sanat-studiosu-lang') || 'tr');
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
 
-  const [auth, setAuth] = useState(null);
-  const [db, setDb] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [creations, setCreations] = useState([]);
-  const [publicCreations, setPublicCreations] = useState([]); 
-  const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
-  const [style, setStyle] = useState('photorealistic');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [imageUrl, setImageUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [showGallery, setShowGallery] = useState(false);
-  const fileInputRef = useRef(null);
-  const [activeGalleryTab, setActiveGalleryTab] = useState('myCreations');
-  const [lastGeneratedCreation, setLastGeneratedCreation] = useState(null);
-  const [isSharing, setIsSharing] = useState(false);
-  const [isCreativeBoostLoading, setIsCreativeBoostLoading] = useState(false);
-  const [isIdeaLoading, setIsIdeaLoading] = useState(false);
-  // YENİ: Fikir kategorisi artık state'den yönetiliyor
-  const [ideaCategory, setIdeaCategory] = useState(uiStrings.ideaCategories[language][0]);
-  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
-  const [artDescription, setArtDescription] = useState('');
-  const [isInspireLoading, setIsInspireLoading] = useState(false);
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
 
-  // YENİ: Dil değiştiğinde localStorage'ı güncelle
-  useEffect(() => {
-    localStorage.setItem('yapay-zeka-sanat-studiosu-lang', language);
-    // Dil değişince fikir kategorisini de o dilin ilk kategorisine ayarla
-    setIdeaCategory(uiStrings.ideaCategories[language][0]);
-  }, [language]);
-  
-  useEffect(() => {
-    if (Object.keys(firebaseConfig).length > 0) {
-        const app = initializeApp(firebaseConfig);
-        const authInstance = getAuth(app); const dbInstance = getFirestore(app);
-        setAuth(authInstance); setDb(dbInstance);
-        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-          if (user) { setUserId(user.uid); } 
-          else { try { if (initialAuthToken) { await signInWithCustomToken(authInstance, initialAuthToken); } 
-          else { await signInAnonymously(authInstance); } } catch (authError){ console.error("Firebase Auth Error:", authError); } }
-        });
-        return () => unsubscribe();
-      }
-  }, []);
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
 
-  useEffect(() => {
-    if (db && userId) {
-      const creationsRef = collection(db, 'artifacts', appId, 'users', userId, 'creations');
-      const q = query(creationsRef); 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        data.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-        setCreations(data);
-      }, (err) => { setError("Kişisel galeriniz yüklenemedi."); });
-      return () => unsubscribe();
-    }
-  }, [db, userId]);
-  
-  useEffect(() => {
-    if (db && userId) {
-      const publicRef = collection(db, 'artifacts', appId, 'public', 'data', 'creations');
-      const q = query(publicRef);
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        data.sort((a, b) => (b.sharedAt?.toMillis() || 0) - (a.sharedAt?.toMillis() || 0));
-        setPublicCreations(data);
-      }, (err) => { setError("Topluluk galerisi yüklenemedi."); });
-      return () => unsubscribe();
-    }
-  }, [db, userId]);
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 2rem;
+        }
 
-  const callGemini = async (payload) => {
-      const apiKey = "";
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-      const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error('API yanıt vermedi veya bir hata oluştu.');
-      return await response.json();
-  };
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
 
-  const translate = async (text, targetLang) => {
-    if (!text || text.trim() === '') return "";
-    const systemPrompt = `Translate the following text to ${targetLang}. Return only the translated text, without any additional explanations or quotation marks. Do not add any of your own commentary. Text: "${text}"`;
-    try {
-        const result = await callGemini({ contents: [{ role: "user", parts: [{ text: systemPrompt }] }] });
-        if (result.candidates && result.candidates.length > 0) { return result.candidates[0].content.parts[0].text.trim(); }
-        return text;
-    } catch (e) { console.error(`Translation to ${targetLang} failed:`, e); return text; }
-  }
-  
-  const handleDownload = (imageUrl, prompt) => { if (!imageUrl) return; const link = document.createElement('a'); link.href = imageUrl; const fileName = (prompt || 'ai-art').substring(0, 40).replace(/[^a-z0-9-]/gi, '_').toLowerCase(); link.download = `${fileName}.jpg`; document.body.appendChild(link); link.click(); document.body.removeChild(link); };
-  const handleDeleteCreation = async (id) => { if(!db || !userId) return; const docRef = doc(db, 'artifacts', appId, 'users', userId, 'creations', id); try { await deleteDoc(docRef); } catch(e) { setError("Eser silinirken bir hata oluştu."); } };
-  const handleShareCreation = async (creationToShare) => {
-      if(!db || !userId || !creationToShare) return;
-      setIsSharing(true);
-      try {
-        const publicCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'creations');
-        await addDoc(publicCollectionRef, { ...creationToShare, originalCreationId: creationToShare.id, userId: userId, sharedAt: new Date() });
-        const userDocRef = doc(db, 'artifacts', appId, 'users', userId, 'creations', creationToShare.id);
-        const batch = writeBatch(db); batch.update(userDocRef, { isShared: true }); await batch.commit();
-        setLastGeneratedCreation(prev => ({ ...prev, isShared: true }));
-      } catch(e) { setError("Eser paylaşılırken bir hata oluştu."); } 
-      finally { setIsSharing(false); }
-  };
-  const handleRemix = (creation) => { setPrompt(creation.prompt); setNegativePrompt(creation.negativePrompt || ''); setStyle(creation.style); setAspectRatio(creation.aspectRatio); setImageUrl(''); setArtDescription(''); setShowGallery(false); };
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+        }
 
-  const handleGetIdea = async () => {
-      setIsIdeaLoading(true); setError(null);
-      const languageName = { tr: "Türkçe", en: "English", de: "Deutsch" }[language] || "English";
-      const systemPrompt = `Bana '${ideaCategory}' temasında, yapay zeka resim oluşturucu için kullanılabilecek, kısa, yaratıcı ve görsel olarak zengin bir ${languageName} prompt (istem) öner. Sadece istemi geri döndür, başka hiçbir açıklama veya tırnak işareti ekleme.`;
-      try {
-          const result = await callGemini({ contents: [{ role: "user", parts: [{ text: systemPrompt }] }] });
-          if (result.candidates && result.candidates.length > 0) setPrompt(result.candidates[0].content.parts[0].text.trim());
-          else throw new Error('Fikir üretilemedi.');
-      } catch (err) { setError(err.message); setTimeout(() => setError(null), 3000); } 
-      finally { setIsIdeaLoading(false); }
-  };
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
 
-  const handleCreativeBoost = async () => {
-    if (!prompt) return;
-    setIsCreativeBoostLoading(true); setError(null);
-    const systemPrompt = `Aşağıdaki fikri alıp, daha zengin, sinematik ve detaylı bir görsel oluşturma istemine dönüştür. Cevabı orijinal istemle aynı dilde ver. Sadece dönüştürülmüş istemi geri döndür. Fikir: '${prompt}'`;
-    try {
-        const result = await callGemini({ contents: [{ role: "user", parts: [{ text: systemPrompt }] }] });
-        if (result.candidates && result.candidates.length > 0) setPrompt(result.candidates[0].content.parts[0].text.trim());
-        else throw new Error('Yaratıcı istem oluşturulamadı.');
-    } catch (err) { setError(err.message); setTimeout(() => setError(null), 3000); } 
-    finally { setIsCreativeBoostLoading(false); }
-  };
-  
-  const handleAnalyzeImage = async () => {
-    if (!imageUrl) return;
-    setIsAnalysisLoading(true); setError(null);
-    const base64ImageData = imageUrl.split(',')[1];
-    const languageName = { tr: "Türkçe", en: "English", de: "Deutsch" }[language] || "English";
-    const systemPrompt = `Bu görseli sanatsal ve şiirsel bir dille, kısa ve etkileyici bir şekilde ${languageName} olarak yorumla. Sadece yorumu geri döndür.`;
-    const payload = { contents: [{ role: "user", parts: [{ text: systemPrompt }, { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }] }] }; 
-    try {
-        const result = await callGemini(payload);
-        if (result.candidates && result.candidates.length > 0) setArtDescription(result.candidates[0].content.parts[0].text.trim());
-        else throw new Error('Resim yorumlanamadı.');
-    } catch (err) { setError(err.message); setTimeout(() => setError(null), 3000); } 
-    finally { setIsAnalysisLoading(false); }
-  };
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
 
-  const handleGenerateImage = useCallback(async () => {
-    if (!prompt) { setError("Oluşturmak için bir şeyler yazmalısınız!"); setTimeout(() => setError(null), 3000); return; }
-    setIsLoading(true); setImageUrl(''); setArtDescription(''); setLastGeneratedCreation(null); setError(null);
-    try {
-        const translatedPrompt = await translate(prompt, 'en');
-        const translatedNegativePrompt = await translate(negativePrompt, 'en');
-        let finalPrompt = `${translatedPrompt}, in the style of ${style}`;
-        if(translatedNegativePrompt) finalPrompt += `, avoiding ${translatedNegativePrompt}`;
-        const payload = { instances: [{ prompt: finalPrompt }], parameters: { "sampleCount": 1, "aspectRatio": aspectRatio } };
-        const apiKey = ""; const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
-        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!response.ok) { const errorBody = await response.json(); throw new Error(`API Hatası: ${errorBody.error?.message || response.statusText}`); }
-        const result = await response.json();
-        if (result.predictions && result.predictions[0].bytesBase64Encoded) {
-            const originalImageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
-            const compressedImageUrl = await compressImage(originalImageUrl);
-            setImageUrl(compressedImageUrl);
-            if(db && userId) {
-                const creationData = { prompt, negativePrompt, style, aspectRatio, imageUrl: compressedImageUrl, createdAt: new Date(), isShared: false };
-                const docRef = await addDoc(collection(db, 'artifacts', appId, 'users', userId, 'creations'), creationData);
-                setLastGeneratedCreation({ id: docRef.id, ...creationData });
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e6ed;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Photo Upload Area */
+        .photo-upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .photo-upload-area:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .photo-upload-area.dragover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        /* Report Table */
+        .reports-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .reports-table th,
+        .reports-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e0e6ed;
+        }
+
+        .reports-table th {
+            background: rgba(102, 126, 234, 0.1);
+            font-weight: 600;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .status-open { background: #fef3c7; color: #92400e; }
+        .status-in_review { background: #dbeafe; color: #1e40af; }
+        .status-resolved { background: #d1fae5; color: #065f46; }
+        .status-closed { background: #f3f4f6; color: #374151; }
+
+        /* Chat Interface */
+        .chat-container {
+            height: 500px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            border: 1px solid #e0e6ed;
+            border-radius: 8px 8px 0 0;
+            background: #f8fafc;
+        }
+
+        .chat-message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 8px;
+            max-width: 70%;
+        }
+
+        .chat-message.own {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-left: auto;
+        }
+
+        .chat-message.other {
+            background: white;
+            border: 1px solid #e0e6ed;
+        }
+
+        .chat-input-area {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem;
+            border: 1px solid #e0e6ed;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            background: white;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid #e0e6ed;
+            border-radius: 6px;
+        }
+
+        .online-indicator {
+            width: 10px;
+            height: 10px;
+            background: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        /* Login Form */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 80px;
             }
-        } else { throw new Error('API\'den geçerli bir resim verisi alınamadı.'); }
-    } catch (err) { console.error("Image Generation Error:", err); setError("Resim oluşturulurken bir hata oluştu."); } 
-    finally { setIsLoading(false); }
-  }, [prompt, negativePrompt, style, aspectRatio, db, userId]);
+            
+            .main-content {
+                padding: 1rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-  return (
-    <div className="bg-gray-900 text-white min-h-screen font-sans flex flex-col relative overflow-hidden">
-      {error && <ErrorMessage message={error} />}
-      {showGallery && <GalleryModal lang={language} creations={creations} publicCreations={publicCreations} onClose={() => setShowGallery(false)} onDownload={handleDownload} onDelete={handleDeleteCreation} onShare={handleShareCreation} onRemix={handleRemix} activeTab={activeGalleryTab} setActiveTab={setActiveGalleryTab} userId={userId} onSelect={(c) => { setPrompt(c.prompt); setNegativePrompt(c.negativePrompt || ''); setStyle(c.style); setAspectRatio(c.aspectRatio); setImageUrl(c.imageUrl); setArtDescription(c.artDescription || ''); setShowGallery(false); }} />}
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-      <header className="py-4 px-8 border-b border-gray-800 shadow-md w-full flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-500">{uiStrings.appTitle[language]}</h1>
-        <div className="flex items-center gap-4">
-            <button onClick={() => setShowGallery(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">{uiStrings.gallery[language]}</button>
-            <div className="relative">
-                <select value={language} onChange={(e) => setLanguage(e.target.value)} className="bg-gray-700 text-white py-2 pl-3 pr-8 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
-                    <option value="tr">🇹🇷 Türkçe</option>
-                    <option value="en">🇬🇧 English</option>
-                    <option value="de">🇩🇪 Deutsch</option>
-                </select>
-            </div>
-        </div>
-      </header>
+        // Mock data
+        const mockUsers = [
+            { id: 1, email: 'admin@factory.com', password: 'admin123', role: 'admin', firstName: 'Admin', lastName: 'User', department: 'IT' },
+            { id: 2, email: 'worker@factory.com', password: 'worker123', role: 'worker', firstName: 'Ahmet', lastName: 'Yılmaz', department: 'Production' },
+            { id: 3, email: 'supervisor@factory.com', password: 'super123', role: 'supervisor', firstName: 'Ayşe', lastName: 'Kaya', department: 'Quality Control' }
+        ];
 
-      <main className="flex-grow flex flex-col md:flex-row p-4 md:p-8 gap-8">
-        <div className="w-full md:w-1/3 lg:w-1/4 flex flex-col gap-5 bg-gray-900/40 p-6 rounded-lg border border-gray-800">
-          <div className="bg-gray-800/50 p-4 rounded-lg border border-gray-700">
-              <label className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.ideaTheme[language]}</label>
-              <div className="flex gap-2">
-                  <select value={ideaCategory} onChange={(e) => setIdeaCategory(e.target.value)} className="w-full bg-gray-700 border border-gray-600 rounded-md p-2.5">
-                    {uiStrings.ideaCategories[language].map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <button onClick={handleGetIdea} disabled={isIdeaLoading} className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-3 rounded-md">
-                      {isIdeaLoading ? '...' : '✨'}
-                  </button>
-              </div>
-          </div>
-          <div>
-            <label htmlFor="prompt" className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.imaginePrompt[language]}</label>
-            <div className="relative">
-                <textarea id="prompt" rows="5" className="w-full bg-gray-800 border border-gray-700 rounded-md p-2.5" placeholder={uiStrings.promptPlaceholder[language]} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-                <button onClick={handleCreativeBoost} disabled={isCreativeBoostLoading} className="absolute bottom-2 right-2 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-1 px-2 rounded-md">
-                   {isCreativeBoostLoading ? '...' : `${uiStrings.boostPrompt[language]} ✨`}
-                </button>
-            </div>
-          </div>
-          <div><label htmlFor="negative-prompt" className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.negativePrompt[language]}</label><input id="negative-prompt" type="text" className="w-full bg-gray-800 border border-gray-700 rounded-md p-2.5" placeholder={uiStrings.negativePromptPlaceholder[language]} value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} /></div>
-          <div><label htmlFor="style" className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.artisticStyle[language]}</label><select id="style" className="w-full bg-gray-800 border border-gray-700 rounded-md p-2.5" value={style} onChange={(e) => setStyle(e.target.value)}>{uiStrings.styles[language].map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}</select></div>
-          <div><label className="block text-sm font-medium text-gray-300 mb-2">{uiStrings.aspectRatio[language]}</label><div className="grid grid-cols-3 gap-2">{['1:1', '16:9', '9:16'].map(ratio => (<button key={ratio} onClick={() => setAspectRatio(ratio)} className={`py-2 px-3 rounded-md text-sm font-semibold ${aspectRatio === ratio ? 'bg-indigo-600' : 'bg-gray-700 hover:bg-gray-600'}`}>{ratio}</button>))}</div></div>
-          <div className="mt-auto pt-4"><button onClick={handleGenerateImage} disabled={isLoading} className="w-full bg-gradient-to-r from-green-500 to-teal-500 hover:from-green-600 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
-              {isLoading ? uiStrings.generating[language] : uiStrings.generate[language]}
-              {!isLoading && (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>)}
-              </button>
-          </div>
-        </div>
+        const mockReports = [
+            {
+                id: 1,
+                userId: 2,
+                productCode: 'PRD-001',
+                defectType: 'Surface Defect',
+                priority: 'high',
+                status: 'open',
+                description: 'Ürün yüzeyinde çizik tespit edildi',
+                createdAt: new Date().toISOString(),
+                photos: []
+            },
+            {
+                id: 2,
+                userId: 3,
+                productCode: 'PRD-002',
+                defectType: 'Dimensional',
+                priority: 'medium',
+                status: 'in_review',
+                description: 'Ölçü toleransı aşıldı',
+                createdAt: new Date(Date.now() - 86400000).toISOString(),
+                photos: []
+            }
+        ];
 
-        <div className="w-full md:w-2/3 lg:w-3/4 flex items-center justify-center bg-black/20 rounded-lg p-4 min-h-[400px] md:min-h-0">
-          {isLoading ? <LoadingSpinner text={uiStrings.generating[language]}/> : (imageUrl ? 
-          <ImageDisplay 
-            lang={language} src={imageUrl} alt={prompt} 
-            onAnalyze={handleAnalyzeImage} isAnalyzing={isAnalysisLoading} analysis={artDescription} 
-            onDownload={() => handleDownload(imageUrl, prompt)}
-            onShare={() => handleShareCreation(lastGeneratedCreation)}
-            isShared={lastGeneratedCreation?.isShared}
-            isSharing={isSharing}
-            /> : <Placeholder lang={language} />)}
-        </div>
-      </main>
-    </div>
-  );
-}
+        // Login Component
+        function LoginForm({ onLogin }) {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
 
-export default App;
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+
+                setTimeout(() => {
+                    const user = mockUsers.find(u => u.email === email && u.password === password);
+                    if (user) {
+                        onLogin(user);
+                    } else {
+                        setError('Geçersiz email veya şifre');
+                    }
+                    setLoading(false);
+                }, 1000);
+            };
+
+            return (
+                <div className="login-container">
+                    <div className="login-card">
+                        <div className="login-header">
+                            <h1 className="login-title">Factory System</h1>
+                            <p>Hata Raporlama Sistemi</p>
+                        </div>
+                        
+                        <form onSubmit={handleLogin}>
+                            {error && (
+                                <div style={{ color: '#ef4444', padding: '0.5rem', background: '#fef2f2', borderRadius: '6px', marginBottom: '1rem' }}>
+                                    {error}
+                                </div>
+                            )}
+                            
+                            <div className="form-group">
+                                <label className="form-label">Email</label>
+                                <input
+                                    type="email"
+                                    className="form-input"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    placeholder="admin@factory.com"
+                                />
+                            </div>
+                            
+                            <div className="form-group">
+                                <label className="form-label">Şifre</label>
+                                <input
+                                    type="password"
+                                    className="form-input"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    placeholder="admin123"
+                                />
+                            </div>
+                            
+                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
+                                {loading ? (
+                                    <>
+                                        <i className="fas fa-spinner fa-spin"></i>
+                                        Giriş yapılıyor...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fas fa-sign-in-alt"></i>
+                                        Giriş Yap
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                        
+                        <div style={{ marginTop: '2rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                            <p><strong>Test Kullanıcıları:</strong></p>
+                            <p>Admin: admin@factory.com / admin123</p>
+                            <p>Worker: worker@factory.com / worker123</p>
+                            <p>Supervisor: supervisor@factory.com / super123</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Dashboard Component
+        function Dashboard({ user }) {
+            const [reports, setReports] = useState(mockReports);
+            const [stats, setStats] = useState({
+                totalReports: 156,
+                openReports: 23,
+                resolvedToday: 12,
+                averageTime: '2.4h'
+            });
+
+            return (
+                <div>
+                    <h1>Dashboard</h1>
+                    <p>Hoş geldiniz, {user.firstName} {user.lastName}</p>
+                    
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.totalReports}</div>
+                            <div>Toplam Rapor</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.openReports}</div>
+                            <div>Açık Raporlar</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.resolvedToday}</div>
+                            <div>Bugün Çözülen</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{stats.averageTime}</div>
+                            <div>Ortalama Süre</div>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <h3>Son Raporlar</h3>
+                        <table className="reports-table">
+                            <thead>
+                                <tr>
+                                    <th>Ürün Kodu</th>
+                                    <th>Hata Türü</th>
+                                    <th>Öncelik</th>
+                                    <th>Durum</th>
+                                    <th>Tarih</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reports.map(report => (
+                                    <tr key={report.id}>
+                                        <td>{report.productCode}</td>
+                                        <td>{report.defectType}</td>
+                                        <td>
+                                            <span className={`status-badge status-${report.priority}`}>
+                                                {report.priority === 'high' ? 'Yüksek' : 
+                                                 report.priority === 'medium' ? 'Orta' : 'Düşük'}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span className={`status-badge status-${report.status}`}>
+                                                {report.status === 'open' ? 'Açık' :
+                                                 report.status === 'in_review' ? 'İncelemede' :
+                                                 report.status === 'resolved' ? 'Çözüldü' : 'Kapatıldı'}
+                                            </span>
+                                        </td>
+                                        <td>{new Date(report.createdAt).toLocaleDateString('tr-TR')}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+        }
+
+        // New Report Component
+        function NewReport({ user, onReportCreated }) {
+            const [formData, setFormData] = useState({
+                productCode: '',
+                defectType: '',
+                priority: 'medium',
+                description: '',
+                photos: []
+            });
+            const [dragOver, setDragOver] = useState(false);
+            const fileInputRef = useRef();
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setDragOver(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                handleFiles(files);
+            };
+
+            const handleFiles = (files) => {
+                const newPhotos = files.map(file => ({
+                    id: Date.now() + Math.random(),
+                    file,
+                    url: URL.createObjectURL(file),
+                    name: file.name
+                }));
+                setFormData(prev => ({ ...prev, photos: [...prev.photos, ...newPhotos] }));
+            };
+
+            const removePhoto = (photoId) => {
+                setFormData(prev => ({
+                    ...prev,
+                    photos: prev.photos.filter(p => p.id !== photoId)
+                }));
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const newReport = {
+                    id: Date.now(),
+                    userId: user.id,
+                    ...formData,
+                    status: 'open',
+                    createdAt: new Date().toISOString()
+                };
+                onReportCreated(newReport);
+                setFormData({
+                    productCode: '',
+                    defectType: '',
+                    priority: 'medium',
+                    description: '',
+                    photos: []
+                });
+                alert('Rapor başarıyla oluşturuldu!');
+            };
+
+            return (
+                <div>
+                    <h1>Yeni Hata Raporu</h1>
+                    
+                    <div className="card">
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label className="form-label">Ürün Kodu</label>
+                                <input
+                                    type="text"
+                                    name="productCode"
+                                    className="form-input"
+                                    value={formData.productCode}
+                                    onChange={handleInputChange}
+                                    required
+                                    placeholder="PRD-001"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Hata Türü</label>
+                                <select
+                                    name="defectType"
+                                    className="form-input"
+                                    value={formData.defectType}
+                                    onChange={handleInputChange}
+                                    required
+                                >
+                                    <option value="">Seçiniz</option>
+                                    <option value="Surface Defect">Yüzey Hatası</option>
+                                    <option value="Dimensional">Ölçüsel Hata</option>
+                                    <option value="Assembly">Montaj Hatası</option>
+                                    <option value="Material">Malzeme Hatası</option>
+                                    <option value="Other">Diğer</option>
+                                </select>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Öncelik</label>
+                                <select
+                                    name="priority"
+                                    className="form-input"
+                                    value={formData.priority}
+                                    onChange={handleInputChange}
+                                >
+                                    <option value="low">Düşük</option>
+                                    <option value="medium">Orta</option>
+                                    <option value="high">Yüksek</option>
+                                    <option value="critical">Kritik</option>
+                                </select>
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Açıklama</label>
+                                <textarea
+                                    name="description"
+                                    className="form-input form-textarea"
+                                    value={formData.description}
+                                    onChange={handleInputChange}
+                                    required
+                                    placeholder="Hata detaylarını açıklayınız..."
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label">Fotoğraflar</label>
+                                <div
+                                    className={`photo-upload-area ${dragOver ? 'dragover' : ''}`}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <i className="fas fa-cloud-upload-alt" style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }}></i>
+                                    <p>Fotoğrafları buraya sürükleyin veya tıklayın</p>
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        multiple
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={(e) => handleFiles(Array.from(e.target.files))}
+                                    />
+                                </div>
+
+                                {formData.photos.length > 0 && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                                        {formData.photos.map(photo => (
+                                            <div key={photo.id} style={{ position: 'relative' }}>
+                                                <img
+                                                    src={photo.url}
+                                                    alt={photo.name}
+                                                    style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removePhoto(photo.id)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: '5px',
+                                                        right: '5px',
+                                                        background: '#ef4444',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '24px',
+                                                        height: '24px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <button type="submit" className="btn btn-primary">
+                                <i className="fas fa-save"></i>
+                                Rapor Oluştur
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Chat Component
+        function Chat({ user }) {
+            const [messages, setMessages] = useState([
+                { id: 1, userId: 2, userName: 'Ahmet Yılmaz', text: 'PRD-001 raporuyla ilgili güncelleme var mı?', timestamp: new Date(), isOwn: false },
+                { id: 2, userId: user.id, userName: `${user.firstName} ${user.lastName}`, text: 'İnceleme devam ediyor, yakında dönüş yapacağız.', timestamp: new Date(), isOwn: true }
+            ]);
+            const [newMessage, setNewMessage] = useState('');
+            const [onlineUsers] = useState([
+                { id: 2, name: 'Ahmet Yılmaz', isOnline: true },
+                { id: 3, name: 'Ayşe Kaya', isOnline: false }
+            ]);
+            const messagesEndRef = useRef();
+
+            const scrollToBottom = () => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            };
+
+            useEffect(() => {
+                scrollToBottom();
+            }, [messages]);
+
+            const sendMessage = (e) => {
+                e.preventDefault();
+                if (!newMessage.trim()) return;
+
+                const message = {
+                    id: Date.now(),
+                    userId: user.id,
+                    userName: `${user.firstName} ${user.lastName}`,
+                    text: newMessage,
+                    timestamp: new Date(),
+                    isOwn: true
+                };
+
+                setMessages(prev => [...prev, message]);
+                setNewMessage('');
+            };
+
+            return (
+                <div>
+                    <h1>Anlık Mesajlaşma</h1>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 250px', gap: '2rem' }}>
+                        <div className="card">
+                            <h3>Genel Sohbet</h3>
+                            <div className="chat-container">
+                                <div className="chat-messages">
+                                    {messages.map(message => (
+                                        <div key={message.id} className={`chat-message ${message.isOwn ? 'own' : 'other'}`}>
+                                            <div style={{ fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                                                {message.userName}
+                                            </div>
+                                            <div>{message.text}</div>
+                                            <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.25rem' }}>
+                                                {message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div ref={messagesEndRef} />
+                                </div>
+                                <form onSubmit={sendMessage} className="chat-input-area">
+                                    <input
+                                        type="text"
+                                        className="chat-input"
+                                        value={newMessage}
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        placeholder="Mesajınızı yazın..."
+                                    />
+                                    <button type="submit" className="btn btn-primary">
+                                        <i className="fas fa-paper-plane"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div className="card">
+                            <h3>Çevrimiçi Kullanıcılar</h3>
+                            <div style={{ marginTop: '1rem' }}>
+                                {onlineUsers.map(u => (
+                                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0' }}>
+                                        <span className={u.isOnline ? 'online-indicator' : ''} style={{
+                                            width: '10px',
+                                            height: '10px',
+                                            borderRadius: '50%',
+                                            background: u.isOnline ? '#10b981' : '#6b7280',
+                                            marginRight: '0.5rem'
+                                        }}></span>
+                                        {u.name}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Reports List Component
+        function ReportsList({ user }) {
+            const [reports, setReports] = useState(mockReports);
+            const [filters, setFilters] = useState({
+                status: '',
+                priority: '',
+                search: ''
+            });
+
+            const filteredReports = reports.filter(report => {
+                return (!filters.status || report.status === filters.status) &&
+                       (!filters.priority || report.priority === filters.priority) &&
+                       (!filters.search || 
+                        report.productCode.toLowerCase().includes(filters.search.toLowerCase()) ||
+                        report.description.toLowerCase().includes(filters.search.toLowerCase()));
+            });
+
+            const updateReportStatus = (reportId, newStatus) => {
+                setReports(prev => prev.map(report => 
+                    report.id === reportId 
+                        ? { ...report, status: newStatus, updatedAt: new Date().toISOString() }
+                        : report
+                ));
+            };
+
+            return (
+                <div>
+                    <h1>Hata Raporları</h1>
+                    
+                    <div className="card">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                            <div className="form-group">
+                                <label className="form-label">Durum Filtresi</label>
+                                <select
+                                    className="form-input"
+                                    value={filters.status}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                                >
+                                    <option value="">Tümü</option>
+                                    <option value="open">Açık</option>
+                                    <option value="in_review">İncelemede</option>
+                                    <option value="resolved">Çözüldü</option>
+                                    <option value="closed">Kapatıldı</option>
+                                </select>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label className="form-label">Öncelik Filtresi</label>
+                                <select
+                                    className="form-input"
+                                    value={filters.priority}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, priority: e.target.value }))}
+                                >
+                                    <option value="">Tümü</option>
+                                    <option value="low">Düşük</option>
+                                    <option value="medium">Orta</option>
+                                    <option value="high">Yüksek</option>
+                                    <option value="critical">Kritik</option>
+                                </select>
+                            </div>
+                            
+                            <div className="form-group">
+                                <label className="form-label">Arama</label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={filters.search}
+                                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                                    placeholder="Ürün kodu veya açıklama..."
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="reports-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Ürün Kodu</th>
+                                        <th>Hata Türü</th>
+                                        <th>Öncelik</th>
+                                        <th>Durum</th>
+                                        <th>Açıklama</th>
+                                        <th>Tarih</th>
+                                        <th>İşlemler</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredReports.map(report => (
+                                        <tr key={report.id}>
+                                            <td>#{report.id}</td>
+                                            <td>{report.productCode}</td>
+                                            <td>{report.defectType}</td>
+                                            <td>
+                                                <span className={`status-badge status-${report.priority}`}>
+                                                    {report.priority === 'critical' ? 'Kritik' :
+                                                     report.priority === 'high' ? 'Yüksek' : 
+                                                     report.priority === 'medium' ? 'Orta' : 'Düşük'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`status-badge status-${report.status}`}>
+                                                    {report.status === 'open' ? 'Açık' :
+                                                     report.status === 'in_review' ? 'İncelemede' :
+                                                     report.status === 'resolved' ? 'Çözüldü' : 'Kapatıldı'}
+                                                </span>
+                                            </td>
+                                            <td style={{ maxWidth: '200px', wordWrap: 'break-word' }}>
+                                                {report.description.substring(0, 50)}...
+                                            </td>
+                                            <td>{new Date(report.createdAt).toLocaleDateString('tr-TR')}</td>
+                                            <td>
+                                                {user.role !== 'worker' && report.status === 'open' && (
+                                                    <button
+                                                        className="btn btn-primary"
+                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
+                                                        onClick={() => updateReportStatus(report.id, 'in_review')}
+                                                    >
+                                                        İncele
+                                                    </button>
+                                                )}
+                                                {user.role !== 'worker' && report.status === 'in_review' && (
+                                                    <button
+                                                        className="btn btn-primary"
+                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
+                                                        onClick={() => updateReportStatus(report.id, 'resolved')}
+                                                    >
+                                                        Çöz
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        {filteredReports.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                                <i className="fas fa-inbox" style={{ fontSize: '3rem', marginBottom: '1rem' }}></i>
+                                <p>Filtrelere uygun rapor bulunamadı</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Analytics Component
+        function Analytics({ user }) {
+            const [analyticsData] = useState({
+                reportsByMonth: [
+                    { month: 'Ocak', total: 45, resolved: 40 },
+                    { month: 'Şubat', total: 52, resolved: 48 },
+                    { month: 'Mart', total: 38, resolved: 35 },
+                    { month: 'Nisan', total: 61, resolved: 58 },
+                    { month: 'Mayıs', total: 49, resolved: 45 },
+                    { month: 'Haziran', total: 56, resolved: 50 }
+                ],
+                defectTypes: [
+                    { type: 'Yüzey Hatası', count: 45, percentage: 32 },
+                    { type: 'Ölçüsel Hata', count: 38, percentage: 27 },
+                    { type: 'Montaj Hatası', count: 29, percentage: 21 },
+                    { type: 'Malzeme Hatası', count: 28, percentage: 20 }
+                ],
+                resolutionTime: {
+                    average: '2.4 saat',
+                    fastest: '0.5 saat',
+                    slowest: '8.2 saat'
+                }
+            });
+
+            return (
+                <div>
+                    <h1>Analitik Raporlar</h1>
+                    
+                    <div className="stats-grid">
+                        <div className="stat-card">
+                            <div className="stat-number">94%</div>
+                            <div>Çözüm Oranı</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">{analyticsData.resolutionTime.average}</div>
+                            <div>Ortalama Çözüm Süresi</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">301</div>
+                            <div>Bu Ay Toplam</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-number">18</div>
+                            <div>Aktif Rapor</div>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
+                        <div className="card">
+                            <h3>Aylık Rapor Trendi</h3>
+                            <div style={{ height: '300px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', padding: '2rem 0' }}>
+                                {analyticsData.reportsByMonth.map((month, index) => (
+                                    <div key={index} style={{ textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', marginBottom: '0.5rem', height: '200px' }}>
+                                            <div
+                                                style={{
+                                                    width: '20px',
+                                                    height: `${(month.total / 70) * 200}px`,
+                                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                    borderRadius: '4px'
+                                                }}
+                                                title={`Toplam: ${month.total}`}
+                                            ></div>
+                                            <div
+                                                style={{
+                                                    width: '20px',
+                                                    height: `${(month.resolved / 70) * 200}px`,
+                                                    background: '#10b981',
+                                                    borderRadius: '4px'
+                                                }}
+                                                title={`Çözülen: ${month.resolved}`}
+                                            ></div>
+                                        </div>
+                                        <div style={{ fontSize: '0.875rem', fontWeight: '600' }}>{month.month}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ width: '20px', height: '12px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '2px' }}></div>
+                                    <span>Toplam</span>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div style={{ width: '20px', height: '12px', background: '#10b981', borderRadius: '2px' }}></div>
+                                    <span>Çözülen</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="card">
+                            <h3>Hata Türü Dağılımı</h3>
+                            <div style={{ marginTop: '2rem' }}>
+                                {analyticsData.defectTypes.map((defect, index) => (
+                                    <div key={index} style={{ marginBottom: '1.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                            <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{defect.type}</span>
+                                            <span style={{ fontSize: '0.875rem' }}>{defect.count} ({defect.percentage}%)</span>
+                                        </div>
+                                        <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                                            <div
+                                                style={{
+                                                    width: `${defect.percentage}%`,
+                                                    height: '100%',
+                                                    background: `linear-gradient(90deg, hsl(${240 + index * 30}, 70%, 60%) 0%, hsl(${260 + index * 30}, 70%, 70%) 100%)`,
+                                                    transition: 'width 0.5s ease'
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="card">
+                        <h3>Performans Metrikleri</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem', marginTop: '2rem' }}>
+                            <div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#667eea' }}>
+                                    {analyticsData.resolutionTime.average}
+                                </div>
+                                <div style={{ color: '#6b7280' }}>Ortalama Çözüm Süresi</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#10b981' }}>
+                                    {analyticsData.resolutionTime.fastest}
+                                </div>
+                                <div style={{ color: '#6b7280' }}>En Hızlı Çözüm</div>
+                            </div>
+                            <div>
+                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#f59e0b' }}>
+                                    {analyticsData.resolutionTime.slowest}
+                                </div>
+                                <div style={{ color: '#6b7280' }}>En Yavaş Çözüm</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+            const handleLogin = (userData) => {
+                setUser(userData);
+            };
+
+            const handleLogout = () => {
+                setUser(null);
+                setActiveTab('dashboard');
+            };
+
+            const onReportCreated = (newReport) => {
+                // In real app, this would be sent to backend
+                console.log('New report created:', newReport);
+            };
+
+            if (!user) {
+                return <LoginForm onLogin={handleLogin} />;
+            }
+
+            const navigation = [
+                { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt', component: Dashboard },
+                { id: 'new-report', label: 'Yeni Rapor', icon: 'fas fa-plus-circle', component: NewReport },
+                { id: 'reports', label: 'Raporlar', icon: 'fas fa-list-alt', component: ReportsList },
+                { id: 'chat', label: 'Mesajlaşma', icon: 'fas fa-comments', component: Chat },
+                { id: 'analytics', label: 'Analitik', icon: 'fas fa-chart-bar', component: Analytics }
+            ];
+
+            const ActiveComponent = navigation.find(nav => nav.id === activeTab)?.component || Dashboard;
+
+            return (
+                <div className="app-container">
+                    <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                        <div className="sidebar-header">
+                            <div className="logo">
+                                <i className="fas fa-industry"></i>
+                                {!sidebarCollapsed && <span>Factory System</span>}
+                            </div>
+                        </div>
+                        
+                        <nav>
+                            {navigation.map(nav => (
+                                <div
+                                    key={nav.id}
+                                    className={`nav-item ${activeTab === nav.id ? 'active' : ''}`}
+                                    onClick={() => setActiveTab(nav.id)}
+                                >
+                                    <i className={nav.icon}></i>
+                                    {!sidebarCollapsed && <span>{nav.label}</span>}
+                                </div>
+                            ))}
+                        </nav>
+                        
+                        <div style={{ marginTop: 'auto', padding: '1rem 2rem' }}>
+                            <div
+                                className="nav-item"
+                                onClick={handleLogout}
+                                style={{ color: '#ef4444' }}
+                            >
+                                <i className="fas fa-sign-out-alt"></i>
+                                {!sidebarCollapsed && <span>Çıkış</span>}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="main-content">
+                        <div className="header">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <button
+                                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                    className="btn btn-primary"
+                                    style={{ padding: '0.5rem', background: 'transparent', color: '#667eea' }}
+                                >
+                                    <i className="fas fa-bars"></i>
+                                </button>
+                                <h2 style={{ margin: 0 }}>
+                                    {navigation.find(nav => nav.id === activeTab)?.label || 'Dashboard'}
+                                </h2>
+                            </div>
+                            
+                            <div className="user-info">
+                                <span>{user.firstName} {user.lastName}</span>
+                                <div className="user-avatar">
+                                    {user.firstName[0]}{user.lastName[0]}
+                                </div>
+                            </div>
+                        </div>
+
+                        <ActiveComponent user={user} onReportCreated={onReportCreated} />
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
