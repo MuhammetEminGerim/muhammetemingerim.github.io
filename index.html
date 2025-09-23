@@ -3,1251 +3,531 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Factory Defect Reporting System</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <title>Fitness Hareketleri Rehberi</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Koyu gri arka plan */
+            color: #f3f4f6;
         }
-
-        .app-container {
-            min-height: 100vh;
-            display: flex;
+        /* Kaydırma çubuğu stilleri */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-
-        /* Sidebar Styles */
-        .sidebar {
-            width: 280px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border-right: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 2rem 0;
-            transition: all 0.3s ease;
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
         }
-
-        .sidebar.collapsed {
-            width: 80px;
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
         }
-
-        .sidebar-header {
-            padding: 0 2rem;
-            margin-bottom: 2rem;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            padding-bottom: 1rem;
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
         }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #667eea;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        .modal-backdrop {
+            backdrop-filter: blur(5px);
         }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            padding: 1rem 2rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border-left: 4px solid transparent;
-        }
-
-        .nav-item:hover, .nav-item.active {
-            background: rgba(102, 126, 234, 0.1);
-            border-left-color: #667eea;
-        }
-
-        .nav-item i {
-            margin-right: 1rem;
-            width: 20px;
-            color: #667eea;
-        }
-
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            padding: 2rem;
-            overflow-y: auto;
-        }
-
-        .header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 1rem 2rem;
-            border-radius: 15px;
-            margin-bottom: 2rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .user-avatar {
+        /* Yükleme animasyonu için stil */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
             width: 40px;
             height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+            animation: spin 1s linear infinite;
         }
-
-        /* Cards */
-        .card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 2rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 2rem;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-        }
-
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Forms */
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 0.75rem;
-            border: 2px solid #e0e6ed;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .form-textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-        }
-
-        /* Photo Upload Area */
-        .photo-upload-area {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .photo-upload-area:hover {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.05);
-        }
-
-        .photo-upload-area.dragover {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.1);
-        }
-
-        /* Report Table */
-        .reports-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-        }
-
-        .reports-table th,
-        .reports-table td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid #e0e6ed;
-        }
-
-        .reports-table th {
-            background: rgba(102, 126, 234, 0.1);
-            font-weight: 600;
-        }
-
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-
-        .status-open { background: #fef3c7; color: #92400e; }
-        .status-in_review { background: #dbeafe; color: #1e40af; }
-        .status-resolved { background: #d1fae5; color: #065f46; }
-        .status-closed { background: #f3f4f6; color: #374151; }
-
-        /* Chat Interface */
-        .chat-container {
-            height: 500px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            border: 1px solid #e0e6ed;
-            border-radius: 8px 8px 0 0;
-            background: #f8fafc;
-        }
-
-        .chat-message {
-            margin-bottom: 1rem;
-            padding: 0.75rem;
-            border-radius: 8px;
-            max-width: 70%;
-        }
-
-        .chat-message.own {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            margin-left: auto;
-        }
-
-        .chat-message.other {
-            background: white;
-            border: 1px solid #e0e6ed;
-        }
-
-        .chat-input-area {
-            display: flex;
-            gap: 0.5rem;
-            padding: 1rem;
-            border: 1px solid #e0e6ed;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            background: white;
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 0.5rem;
-            border: 1px solid #e0e6ed;
-            border-radius: 6px;
-        }
-
-        .online-indicator {
-            width: 10px;
-            height: 10px;
-            background: #10b981;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 0.5rem;
-        }
-
-        /* Login Form */
-        .login-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-        }
-
-        .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 3rem;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .login-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .login-title {
-            font-size: 2rem;
-            font-weight: bold;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 80px;
-            }
-            
-            .main-content {
-                padding: 1rem;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
-    <div id="root"></div>
+<body class="antialiased">
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 relative">
+        <!-- Giriş/Kayıt Butonları -->
+        <div id="auth-buttons" class="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 z-10 space-x-2">
+            <button id="login-btn" class="px-4 py-2 text-sm font-semibold text-white bg-gray-700/50 backdrop-blur-sm rounded-md hover:bg-gray-600 transition-colors">Giriş Yap</button>
+            <button id="register-btn" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors">Kayıt Ol</button>
+        </div>
+        <div id="user-info" class="absolute top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 z-10 items-center space-x-3 hidden">
+            <span id="user-greeting" class="text-white font-semibold"></span>
+            <button id="logout-btn" class="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors">Çıkış Yap</button>
+        </div>
 
-        // Mock data
-        const mockUsers = [
-            { id: 1, email: 'admin@factory.com', password: 'admin123', role: 'admin', firstName: 'Admin', lastName: 'User', department: 'IT' },
-            { id: 2, email: 'worker@factory.com', password: 'worker123', role: 'worker', firstName: 'Ahmet', lastName: 'Yılmaz', department: 'Production' },
-            { id: 3, email: 'supervisor@factory.com', password: 'super123', role: 'supervisor', firstName: 'Ayşe', lastName: 'Kaya', department: 'Quality Control' }
-        ];
+        <!-- Başlık ve Açıklama -->
+        <header class="text-center mb-8 pt-16 sm:pt-12">
+            <h1 class="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-300">
+                FitRehber
+            </h1>
+            <p class="text-gray-400 mt-2 max-w-2xl mx-auto">
+                Öğrenmek istediğiniz hareketi seçin ve doğru formda nasıl yapılacağını keşfedin.
+            </p>
+        </header>
 
-        const mockReports = [
-            {
-                id: 1,
-                userId: 2,
-                productCode: 'PRD-001',
-                defectType: 'Surface Defect',
-                priority: 'high',
-                status: 'open',
-                description: 'Ürün yüzeyinde çizik tespit edildi',
-                createdAt: new Date().toISOString(),
-                photos: []
-            },
-            {
-                id: 2,
-                userId: 3,
-                productCode: 'PRD-002',
-                defectType: 'Dimensional',
-                priority: 'medium',
-                status: 'in_review',
-                description: 'Ölçü toleransı aşıldı',
-                createdAt: new Date(Date.now() - 86400000).toISOString(),
-                photos: []
-            }
-        ];
+        <main>
+            <!-- Filtreleme Butonları -->
+            <div id="filter-buttons" class="flex flex-wrap justify-center gap-2 mb-6">
+                <!-- Butonlar JavaScript ile yüklenecek -->
+            </div>
+            
+            <!-- Gemini Program Oluşturucu Butonu -->
+            <div class="text-center mb-8">
+                <button id="gemini-plan-btn" class="bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-bold py-3 px-6 rounded-full hover:scale-105 transform transition-transform duration-300 shadow-lg shadow-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                    ✨ Bana Özel Program Oluştur
+                </button>
+            </div>
 
-        // Login Component
-        function LoginForm({ onLogin }) {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [error, setError] = useState('');
-            const [loading, setLoading] = useState(false);
+            <!-- Hareket Kartları -->
+            <div id="exercise-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <!-- Hareket kartları JavaScript ile yüklenecek -->
+            </div>
+             <p id="no-results" class="text-center text-gray-500 mt-8 text-lg hidden">Bu kategori için henüz hareket eklenmemiş.</p>
+        </main>
+    </div>
 
-            const handleLogin = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setError('');
-
-                setTimeout(() => {
-                    const user = mockUsers.find(u => u.email === email && u.password === password);
-                    if (user) {
-                        onLogin(user);
-                    } else {
-                        setError('Geçersiz email veya şifre');
-                    }
-                    setLoading(false);
-                }, 1000);
-            };
-
-            return (
-                <div className="login-container">
-                    <div className="login-card">
-                        <div className="login-header">
-                            <h1 className="login-title">Factory System</h1>
-                            <p>Hata Raporlama Sistemi</p>
-                        </div>
-                        
-                        <form onSubmit={handleLogin}>
-                            {error && (
-                                <div style={{ color: '#ef4444', padding: '0.5rem', background: '#fef2f2', borderRadius: '6px', marginBottom: '1rem' }}>
-                                    {error}
-                                </div>
-                            )}
-                            
-                            <div className="form-group">
-                                <label className="form-label">Email</label>
-                                <input
-                                    type="email"
-                                    className="form-input"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    placeholder="admin@factory.com"
-                                />
-                            </div>
-                            
-                            <div className="form-group">
-                                <label className="form-label">Şifre</label>
-                                <input
-                                    type="password"
-                                    className="form-input"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    placeholder="admin123"
-                                />
-                            </div>
-                            
-                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-                                {loading ? (
-                                    <>
-                                        <i className="fas fa-spinner fa-spin"></i>
-                                        Giriş yapılıyor...
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="fas fa-sign-in-alt"></i>
-                                        Giriş Yap
-                                    </>
-                                )}
-                            </button>
-                        </form>
-                        
-                        <div style={{ marginTop: '2rem', fontSize: '0.875rem', color: '#6b7280' }}>
-                            <p><strong>Test Kullanıcıları:</strong></p>
-                            <p>Admin: admin@factory.com / admin123</p>
-                            <p>Worker: worker@factory.com / worker123</p>
-                            <p>Supervisor: supervisor@factory.com / super123</p>
-                        </div>
+    <!-- Detay Modalı (Popup) -->
+    <div id="exercise-modal" class="fixed inset-0 z-50 items-center justify-center p-4 hidden">
+        <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 modal-backdrop"></div>
+        <div id="modal-content" class="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl mx-auto z-10 transform transition-all duration-300 scale-95 opacity-0 overflow-hidden">
+            <div class="p-6 sm:p-8 relative">
+                <button id="close-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-times fa-2x"></i>
+                </button>
+                <div class="flex flex-col lg:flex-row gap-8">
+                    <!-- GIF Alanı -->
+                    <div class="lg:w-1/2 flex-shrink-0">
+                         <img id="modal-gif" src="" alt="Hareket animasyonu" class="rounded-lg w-full h-auto object-cover aspect-square bg-gray-700">
+                    </div>
+                    <!-- Bilgi Alanı -->
+                    <div class="lg:w-1/2">
+                        <h2 id="modal-title" class="text-3xl font-bold text-white mb-2"></h2>
+                        <span id="modal-muscle-group" class="inline-block bg-blue-500 text-white text-sm font-semibold px-3 py-1 rounded-full mb-6"></span>
+                        <h3 class="text-xl font-semibold mb-3 text-gray-200 border-b-2 border-gray-700 pb-2">Nasıl Yapılır?</h3>
+                        <ul id="modal-instructions" class="space-y-3 text-gray-300 list-disc list-inside">
+                            <!-- Talimatlar JavaScript ile eklenecek -->
+                        </ul>
                     </div>
                 </div>
-            );
-        }
+            </div>
+        </div>
+    </div>
 
-        // Dashboard Component
-        function Dashboard({ user }) {
-            const [reports, setReports] = useState(mockReports);
-            const [stats, setStats] = useState({
-                totalReports: 156,
-                openReports: 23,
-                resolvedToday: 12,
-                averageTime: '2.4h'
-            });
-
-            return (
-                <div>
-                    <h1>Dashboard</h1>
-                    <p>Hoş geldiniz, {user.firstName} {user.lastName}</p>
-                    
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-number">{stats.totalReports}</div>
-                            <div>Toplam Rapor</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">{stats.openReports}</div>
-                            <div>Açık Raporlar</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">{stats.resolvedToday}</div>
-                            <div>Bugün Çözülen</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">{stats.averageTime}</div>
-                            <div>Ortalama Süre</div>
-                        </div>
-                    </div>
-
-                    <div className="card">
-                        <h3>Son Raporlar</h3>
-                        <table className="reports-table">
-                            <thead>
-                                <tr>
-                                    <th>Ürün Kodu</th>
-                                    <th>Hata Türü</th>
-                                    <th>Öncelik</th>
-                                    <th>Durum</th>
-                                    <th>Tarih</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {reports.map(report => (
-                                    <tr key={report.id}>
-                                        <td>{report.productCode}</td>
-                                        <td>{report.defectType}</td>
-                                        <td>
-                                            <span className={`status-badge status-${report.priority}`}>
-                                                {report.priority === 'high' ? 'Yüksek' : 
-                                                 report.priority === 'medium' ? 'Orta' : 'Düşük'}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <span className={`status-badge status-${report.status}`}>
-                                                {report.status === 'open' ? 'Açık' :
-                                                 report.status === 'in_review' ? 'İncelemede' :
-                                                 report.status === 'resolved' ? 'Çözüldü' : 'Kapatıldı'}
-                                            </span>
-                                        </td>
-                                        <td>{new Date(report.createdAt).toLocaleDateString('tr-TR')}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+    <!-- Gemini Plan Modalı -->
+    <div id="gemini-modal" class="fixed inset-0 z-50 items-center justify-center p-4 hidden">
+        <div id="gemini-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 modal-backdrop"></div>
+        <div id="gemini-modal-content" class="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl mx-auto z-10 transform transition-all duration-300 scale-95 opacity-0 overflow-hidden">
+            <div class="p-6 sm:p-8 relative">
+                <button id="close-gemini-modal-btn" class="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors">
+                    <i class="fas fa-times fa-2x"></i>
+                </button>
+                <h2 class="text-3xl font-bold text-white mb-4 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">✨ Yapay Zeka Antrenman Planı</h2>
+                <div id="gemini-plan-container" class="mt-4 text-gray-300 bg-gray-900/50 p-6 rounded-lg min-h-[200px] prose prose-invert prose-p:my-2 prose-ul:my-2">
+                    <!-- Gemini cevabı buraya gelecek -->
                 </div>
-            );
-        }
+            </div>
+        </div>
+    </div>
 
-        // New Report Component
-        function NewReport({ user, onReportCreated }) {
-            const [formData, setFormData] = useState({
-                productCode: '',
-                defectType: '',
-                priority: 'medium',
-                description: '',
-                photos: []
-            });
-            const [dragOver, setDragOver] = useState(false);
-            const fileInputRef = useRef();
+    <!-- Giriş Yapma Modalı -->
+    <div id="login-modal" class="fixed inset-0 z-50 items-center justify-center p-4 hidden">
+        <div id="login-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 modal-backdrop"></div>
+        <div id="login-modal-content" class="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-auto z-10 transform transition-all duration-300 scale-95 opacity-0">
+            <div class="p-8">
+                <h2 class="text-3xl font-bold text-center text-white mb-6">Giriş Yap</h2>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label for="login-email" class="block text-gray-300 mb-2">Email</label>
+                        <input type="email" id="login-email" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="login-password" class="block text-gray-300 mb-2">Şifre</label>
+                        <input type="password" id="login-password" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700 transition-colors">Giriş Yap</button>
+                </form>
+                <p class="text-center text-gray-400 mt-6">
+                    Hesabın yok mu? <a href="#" id="go-to-register" class="text-blue-400 hover:underline">Kayıt Ol</a>
+                </p>
+            </div>
+        </div>
+    </div>
 
-            const handleInputChange = (e) => {
-                const { name, value } = e.target;
-                setFormData(prev => ({ ...prev, [name]: value }));
-            };
+    <!-- Kayıt Olma Modalı -->
+    <div id="register-modal" class="fixed inset-0 z-50 items-center justify-center p-4 hidden">
+        <div id="register-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 modal-backdrop"></div>
+        <div id="register-modal-content" class="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md mx-auto z-10 transform transition-all duration-300 scale-95 opacity-0">
+            <div class="p-8">
+                <h2 class="text-3xl font-bold text-center text-white mb-6">Hesap Oluştur</h2>
+                <form id="register-form">
+                    <div class="mb-4">
+                        <label for="register-name" class="block text-gray-300 mb-2">İsim</label>
+                        <input type="text" id="register-name" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="register-email" class="block text-gray-300 mb-2">Email</label>
+                        <input type="email" id="register-email" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label for="register-password" class="block text-gray-300 mb-2">Şifre</label>
+                        <input type="password" id="register-password" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-md hover:bg-blue-700 transition-colors">Kayıt Ol</button>
+                </form>
+                <p class="text-center text-gray-400 mt-6">
+                    Zaten bir hesabın var mı? <a href="#" id="go-to-login" class="text-blue-400 hover:underline">Giriş Yap</a>
+                </p>
+            </div>
+        </div>
+    </div>
 
-            const handleDragOver = (e) => {
-                e.preventDefault();
-                setDragOver(true);
-            };
 
-            const handleDragLeave = (e) => {
-                e.preventDefault();
-                setDragOver(false);
-            };
+    <script>
+        // --- ELEMENT REFERENCES ---
+        const authButtons = document.getElementById('auth-buttons');
+        const userInfo = document.getElementById('user-info');
+        const userGreeting = document.getElementById('user-greeting');
+        const loginBtn = document.getElementById('login-btn');
+        const registerBtn = document.getElementById('register-btn');
+        const logoutBtn = document.getElementById('logout-btn');
 
-            const handleDrop = (e) => {
-                e.preventDefault();
-                setDragOver(false);
-                const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-                handleFiles(files);
-            };
+        const loginModal = document.getElementById('login-modal');
+        const loginModalBackdrop = document.getElementById('login-modal-backdrop');
+        const loginModalContent = document.getElementById('login-modal-content');
+        const loginForm = document.getElementById('login-form');
+        const goToRegister = document.getElementById('go-to-register');
 
-            const handleFiles = (files) => {
-                const newPhotos = files.map(file => ({
-                    id: Date.now() + Math.random(),
-                    file,
-                    url: URL.createObjectURL(file),
-                    name: file.name
-                }));
-                setFormData(prev => ({ ...prev, photos: [...prev.photos, ...newPhotos] }));
-            };
+        const registerModal = document.getElementById('register-modal');
+        const registerModalBackdrop = document.getElementById('register-modal-backdrop');
+        const registerModalContent = document.getElementById('register-modal-content');
+        const registerForm = document.getElementById('register-form');
+        const goToLogin = document.getElementById('go-to-login');
+        
+        const exerciseGrid = document.getElementById('exercise-grid');
+        const filterButtonsContainer = document.getElementById('filter-buttons');
+        const noResultsMessage = document.getElementById('no-results');
 
-            const removePhoto = (photoId) => {
-                setFormData(prev => ({
-                    ...prev,
-                    photos: prev.photos.filter(p => p.id !== photoId)
-                }));
-            };
+        const modal = document.getElementById('exercise-modal');
+        const modalBackdrop = document.getElementById('modal-backdrop');
+        const modalContent = document.getElementById('modal-content');
+        const closeModalBtn = document.getElementById('close-modal-btn');
 
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                const newReport = {
-                    id: Date.now(),
-                    userId: user.id,
-                    ...formData,
-                    status: 'open',
-                    createdAt: new Date().toISOString()
-                };
-                onReportCreated(newReport);
-                setFormData({
-                    productCode: '',
-                    defectType: '',
-                    priority: 'medium',
-                    description: '',
-                    photos: []
+        const geminiPlanBtn = document.getElementById('gemini-plan-btn');
+        const geminiModal = document.getElementById('gemini-modal');
+        const geminiModalBackdrop = document.getElementById('gemini-modal-backdrop');
+        const geminiModalContent = document.getElementById('gemini-modal-content');
+        const closeGeminiModalBtn = document.getElementById('close-gemini-modal-btn');
+        const geminiPlanContainer = document.getElementById('gemini-plan-container');
+
+        // --- DATA ---
+        const exercises = [
+            { id: 1, name: 'Şınav (Push-up)', muscleGroup: 'Göğüs', instructions: [ "Yüzüstü pozisyonda, eller omuz genişliğinde açık olacak şekilde başlayın.", "Vücudunuzu düz bir çizgide tutarak göğsünüz yere yaklaşana kadar dirseklerinizi bükün.", "Başlangıç pozisyonuna dönmek için kollarınızla kendinizi itin.", "Hareket boyunca karın ve kalça kaslarınızı sıkı tutun." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/20.gif' },
+            { id: 2, name: 'Barfiks (Pull-up)', muscleGroup: 'Sırt', instructions: [ "Bir barı omuz genişliğinden biraz daha geniş bir şekilde avuç içleriniz karşıya bakacak şekilde tutun.", "Kollarınız tamamen açık şekilde asılı kalın.", "Sırt kaslarınızı kullanarak çeneniz barın üzerine gelene kadar kendinizi yukarı çekin.", "Kontrollü bir şekilde başlangıç pozisyonuna geri dönün." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/129.gif' },
+            { id: 3, name: 'Squat (Çömelme)', muscleGroup: 'Bacak', instructions: [ "Ayaklarınızı omuz genişliğinde açın, ayak parmaklarınız hafifçe dışarı baksın.", "Sırtınızı düz tutarak kalçanızı geriye ve aşağıya doğru, sandalyeye oturur gibi indirin.", "Uyluklarınız yere paralel olana kadar çömelin.", "Topuklarınızdan güç alarak başlangıç pozisyonuna dönün." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/164.gif' },
+            { id: 4, name: 'Mekik (Crunch)', muscleGroup: 'Karın', instructions: [ "Sırtüstü yatın, dizlerinizi bükün ve ayaklarınızı yere düz basın.", "Ellerinizi başınızın arkasına veya göğsünüzün üzerine koyun.", "Karın kaslarınızı sıkarak kürek kemiklerinizi yerden kaldırın.", "Yavaşça başlangıç pozisyonuna dönün. Boynunuzu çekmemeye dikkat edin." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/2.gif' },
+            { id: 5, name: 'Dumbbell Omuz Pres', muscleGroup: 'Omuz', instructions: [ "Her iki elinize birer dambıl alarak bir sehpaya oturun.", "Dambılları omuz hizanızda, avuç içleriniz karşıya bakacak şekilde tutun.", "Kollarınız tamamen uzayana kadar dambılları yukarı doğru itin.", "Kontrollü bir şekilde başlangıç pozisyonuna indirin." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/400.gif' },
+            { id: 6, name: 'Dumbbell Row', muscleGroup: 'Sırt', instructions: [ "Bir dizinizi ve aynı taraftaki elinizi sehpaya dayayın.", "Diğer elinizle dambılı alın, sırtınız yere paralel olsun.", "Dambılı göğsünüze doğru, sırt kaslarınızı sıkarak çekin.", "Yavaşça başlangıç pozisyonuna indirin ve tekrar edin." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/387.gif' },
+            { id: 7, name: 'Lunge', muscleGroup: 'Bacak', instructions: [ "Ayakta dik durun.", "Bir bacağınızla öne doğru büyük bir adım atın.", "Her iki diziniz de 90 derece bükülene kadar vücudunuzu alçaltın. Arka diziniz yere değmemeli.", "Başlangıç pozisyonuna dönmek için öndeki topuğunuzdan güç alın." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/167.gif' },
+            { id: 8, name: 'Plank', muscleGroup: 'Karın', instructions: [ "Şınav pozisyonu alın ancak dirseklerinizin ve ön kollarınızın üzerinde durun.", "Vücudunuzu baştan topuklara kadar düz bir çizgide tutun.", "Karın ve kalça kaslarınızı sıkarak pozisyonu koruyun.", "Belinizin aşağı düşmesine izin vermeyin." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/25.gif' },
+            { id: 9, name: 'Dumbbell Bench Press', muscleGroup: 'Göğüs', instructions: [ "Düz bir sehpaya sırtüstü uzanın, her elinizde bir dambıl olsun.", "Dambılları göğsünüzün yanlarında, kollarınız bükülü şekilde tutun.", "Kollarınız tamamen uzayana kadar dambılları yukarı doğru itin.", "Kontrollü bir şekilde başlangıç pozisyonuna geri indirin." ], gifUrl: 'https://cdn.jefit.com/assets/img/exercises/gifs/384.gif' }
+        ];
+
+        const muscleGroupIcons = {
+            'Tümü': 'fa-solid fa-layer-group',
+            'Göğüs': 'fa-solid fa-dumbbell',
+            'Sırt': 'fa-solid fa-person-running',
+            'Bacak': 'fa-solid fa-shoe-prints',
+            'Karın': 'fa-solid fa-fire',
+            'Omuz': 'fa-solid fa-hand-fist'
+        };
+
+        // --- STATE ---
+        let activeFilter = 'Tümü';
+        let isLoggedIn = false;
+        let currentUserName = '';
+
+        // --- INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            createFilterButtons();
+            displayExercises('Tümü');
+            updateAuthStateUI();
+        });
+
+        // --- FUNCTIONS ---
+
+        function createFilterButtons() {
+            const muscleGroups = ['Tümü', ...new Set(exercises.map(ex => ex.muscleGroup))];
+            muscleGroups.forEach(group => {
+                const button = document.createElement('button');
+                const iconClass = muscleGroupIcons[group] || 'fa-solid fa-question';
+                button.innerHTML = `<i class="${iconClass} mr-2 transition-transform duration-300 group-hover:rotate-12"></i><span>${group}</span>`;
+                button.dataset.group = group;
+                button.className = `group flex items-center justify-center px-5 py-2.5 text-sm font-semibold rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 transform hover:scale-105`;
+
+                if (group === 'Tümü') {
+                    button.classList.add('bg-gradient-to-r', 'from-blue-500', 'to-teal-400', 'text-white', 'shadow-lg', 'shadow-blue-500/30', 'focus:ring-blue-500');
+                } else {
+                    button.classList.add('bg-gray-700', 'text-gray-300', 'hover:bg-gray-600', 'focus:ring-gray-500');
+                }
+
+                button.addEventListener('click', () => {
+                    activeFilter = group;
+                    updateActiveButton(activeFilter);
+                    displayExercises(group);
                 });
-                alert('Rapor başarıyla oluşturuldu!');
-            };
-
-            return (
-                <div>
-                    <h1>Yeni Hata Raporu</h1>
-                    
-                    <div className="card">
-                        <form onSubmit={handleSubmit}>
-                            <div className="form-group">
-                                <label className="form-label">Ürün Kodu</label>
-                                <input
-                                    type="text"
-                                    name="productCode"
-                                    className="form-input"
-                                    value={formData.productCode}
-                                    onChange={handleInputChange}
-                                    required
-                                    placeholder="PRD-001"
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label className="form-label">Hata Türü</label>
-                                <select
-                                    name="defectType"
-                                    className="form-input"
-                                    value={formData.defectType}
-                                    onChange={handleInputChange}
-                                    required
-                                >
-                                    <option value="">Seçiniz</option>
-                                    <option value="Surface Defect">Yüzey Hatası</option>
-                                    <option value="Dimensional">Ölçüsel Hata</option>
-                                    <option value="Assembly">Montaj Hatası</option>
-                                    <option value="Material">Malzeme Hatası</option>
-                                    <option value="Other">Diğer</option>
-                                </select>
-                            </div>
-
-                            <div className="form-group">
-                                <label className="form-label">Öncelik</label>
-                                <select
-                                    name="priority"
-                                    className="form-input"
-                                    value={formData.priority}
-                                    onChange={handleInputChange}
-                                >
-                                    <option value="low">Düşük</option>
-                                    <option value="medium">Orta</option>
-                                    <option value="high">Yüksek</option>
-                                    <option value="critical">Kritik</option>
-                                </select>
-                            </div>
-
-                            <div className="form-group">
-                                <label className="form-label">Açıklama</label>
-                                <textarea
-                                    name="description"
-                                    className="form-input form-textarea"
-                                    value={formData.description}
-                                    onChange={handleInputChange}
-                                    required
-                                    placeholder="Hata detaylarını açıklayınız..."
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label className="form-label">Fotoğraflar</label>
-                                <div
-                                    className={`photo-upload-area ${dragOver ? 'dragover' : ''}`}
-                                    onDragOver={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={handleDrop}
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <i className="fas fa-cloud-upload-alt" style={{ fontSize: '3rem', color: '#ccc', marginBottom: '1rem' }}></i>
-                                    <p>Fotoğrafları buraya sürükleyin veya tıklayın</p>
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        multiple
-                                        accept="image/*"
-                                        style={{ display: 'none' }}
-                                        onChange={(e) => handleFiles(Array.from(e.target.files))}
-                                    />
-                                </div>
-
-                                {formData.photos.length > 0 && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
-                                        {formData.photos.map(photo => (
-                                            <div key={photo.id} style={{ position: 'relative' }}>
-                                                <img
-                                                    src={photo.url}
-                                                    alt={photo.name}
-                                                    style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px' }}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removePhoto(photo.id)}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: '5px',
-                                                        right: '5px',
-                                                        background: '#ef4444',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '50%',
-                                                        width: '24px',
-                                                        height: '24px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            <button type="submit" className="btn btn-primary">
-                                <i className="fas fa-save"></i>
-                                Rapor Oluştur
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            );
-        }
-
-        // Chat Component
-        function Chat({ user }) {
-            const [messages, setMessages] = useState([
-                { id: 1, userId: 2, userName: 'Ahmet Yılmaz', text: 'PRD-001 raporuyla ilgili güncelleme var mı?', timestamp: new Date(), isOwn: false },
-                { id: 2, userId: user.id, userName: `${user.firstName} ${user.lastName}`, text: 'İnceleme devam ediyor, yakında dönüş yapacağız.', timestamp: new Date(), isOwn: true }
-            ]);
-            const [newMessage, setNewMessage] = useState('');
-            const [onlineUsers] = useState([
-                { id: 2, name: 'Ahmet Yılmaz', isOnline: true },
-                { id: 3, name: 'Ayşe Kaya', isOnline: false }
-            ]);
-            const messagesEndRef = useRef();
-
-            const scrollToBottom = () => {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            };
-
-            useEffect(() => {
-                scrollToBottom();
-            }, [messages]);
-
-            const sendMessage = (e) => {
-                e.preventDefault();
-                if (!newMessage.trim()) return;
-
-                const message = {
-                    id: Date.now(),
-                    userId: user.id,
-                    userName: `${user.firstName} ${user.lastName}`,
-                    text: newMessage,
-                    timestamp: new Date(),
-                    isOwn: true
-                };
-
-                setMessages(prev => [...prev, message]);
-                setNewMessage('');
-            };
-
-            return (
-                <div>
-                    <h1>Anlık Mesajlaşma</h1>
-                    
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 250px', gap: '2rem' }}>
-                        <div className="card">
-                            <h3>Genel Sohbet</h3>
-                            <div className="chat-container">
-                                <div className="chat-messages">
-                                    {messages.map(message => (
-                                        <div key={message.id} className={`chat-message ${message.isOwn ? 'own' : 'other'}`}>
-                                            <div style={{ fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                                                {message.userName}
-                                            </div>
-                                            <div>{message.text}</div>
-                                            <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: '0.25rem' }}>
-                                                {message.timestamp.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div ref={messagesEndRef} />
-                                </div>
-                                <form onSubmit={sendMessage} className="chat-input-area">
-                                    <input
-                                        type="text"
-                                        className="chat-input"
-                                        value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                        placeholder="Mesajınızı yazın..."
-                                    />
-                                    <button type="submit" className="btn btn-primary">
-                                        <i className="fas fa-paper-plane"></i>
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-
-                        <div className="card">
-                            <h3>Çevrimiçi Kullanıcılar</h3>
-                            <div style={{ marginTop: '1rem' }}>
-                                {onlineUsers.map(u => (
-                                    <div key={u.id} style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 0' }}>
-                                        <span className={u.isOnline ? 'online-indicator' : ''} style={{
-                                            width: '10px',
-                                            height: '10px',
-                                            borderRadius: '50%',
-                                            background: u.isOnline ? '#10b981' : '#6b7280',
-                                            marginRight: '0.5rem'
-                                        }}></span>
-                                        {u.name}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Reports List Component
-        function ReportsList({ user }) {
-            const [reports, setReports] = useState(mockReports);
-            const [filters, setFilters] = useState({
-                status: '',
-                priority: '',
-                search: ''
+                filterButtonsContainer.appendChild(button);
             });
-
-            const filteredReports = reports.filter(report => {
-                return (!filters.status || report.status === filters.status) &&
-                       (!filters.priority || report.priority === filters.priority) &&
-                       (!filters.search || 
-                        report.productCode.toLowerCase().includes(filters.search.toLowerCase()) ||
-                        report.description.toLowerCase().includes(filters.search.toLowerCase()));
-            });
-
-            const updateReportStatus = (reportId, newStatus) => {
-                setReports(prev => prev.map(report => 
-                    report.id === reportId 
-                        ? { ...report, status: newStatus, updatedAt: new Date().toISOString() }
-                        : report
-                ));
-            };
-
-            return (
-                <div>
-                    <h1>Hata Raporları</h1>
-                    
-                    <div className="card">
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-                            <div className="form-group">
-                                <label className="form-label">Durum Filtresi</label>
-                                <select
-                                    className="form-input"
-                                    value={filters.status}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                                >
-                                    <option value="">Tümü</option>
-                                    <option value="open">Açık</option>
-                                    <option value="in_review">İncelemede</option>
-                                    <option value="resolved">Çözüldü</option>
-                                    <option value="closed">Kapatıldı</option>
-                                </select>
-                            </div>
-                            
-                            <div className="form-group">
-                                <label className="form-label">Öncelik Filtresi</label>
-                                <select
-                                    className="form-input"
-                                    value={filters.priority}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, priority: e.target.value }))}
-                                >
-                                    <option value="">Tümü</option>
-                                    <option value="low">Düşük</option>
-                                    <option value="medium">Orta</option>
-                                    <option value="high">Yüksek</option>
-                                    <option value="critical">Kritik</option>
-                                </select>
-                            </div>
-                            
-                            <div className="form-group">
-                                <label className="form-label">Arama</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    value={filters.search}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                                    placeholder="Ürün kodu veya açıklama..."
-                                />
-                            </div>
-                        </div>
-
-                        <div style={{ overflowX: 'auto' }}>
-                            <table className="reports-table">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Ürün Kodu</th>
-                                        <th>Hata Türü</th>
-                                        <th>Öncelik</th>
-                                        <th>Durum</th>
-                                        <th>Açıklama</th>
-                                        <th>Tarih</th>
-                                        <th>İşlemler</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredReports.map(report => (
-                                        <tr key={report.id}>
-                                            <td>#{report.id}</td>
-                                            <td>{report.productCode}</td>
-                                            <td>{report.defectType}</td>
-                                            <td>
-                                                <span className={`status-badge status-${report.priority}`}>
-                                                    {report.priority === 'critical' ? 'Kritik' :
-                                                     report.priority === 'high' ? 'Yüksek' : 
-                                                     report.priority === 'medium' ? 'Orta' : 'Düşük'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={`status-badge status-${report.status}`}>
-                                                    {report.status === 'open' ? 'Açık' :
-                                                     report.status === 'in_review' ? 'İncelemede' :
-                                                     report.status === 'resolved' ? 'Çözüldü' : 'Kapatıldı'}
-                                                </span>
-                                            </td>
-                                            <td style={{ maxWidth: '200px', wordWrap: 'break-word' }}>
-                                                {report.description.substring(0, 50)}...
-                                            </td>
-                                            <td>{new Date(report.createdAt).toLocaleDateString('tr-TR')}</td>
-                                            <td>
-                                                {user.role !== 'worker' && report.status === 'open' && (
-                                                    <button
-                                                        className="btn btn-primary"
-                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-                                                        onClick={() => updateReportStatus(report.id, 'in_review')}
-                                                    >
-                                                        İncele
-                                                    </button>
-                                                )}
-                                                {user.role !== 'worker' && report.status === 'in_review' && (
-                                                    <button
-                                                        className="btn btn-primary"
-                                                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.875rem' }}
-                                                        onClick={() => updateReportStatus(report.id, 'resolved')}
-                                                    >
-                                                        Çöz
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        {filteredReports.length === 0 && (
-                            <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                                <i className="fas fa-inbox" style={{ fontSize: '3rem', marginBottom: '1rem' }}></i>
-                                <p>Filtrelere uygun rapor bulunamadı</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
         }
-
-        // Analytics Component
-        function Analytics({ user }) {
-            const [analyticsData] = useState({
-                reportsByMonth: [
-                    { month: 'Ocak', total: 45, resolved: 40 },
-                    { month: 'Şubat', total: 52, resolved: 48 },
-                    { month: 'Mart', total: 38, resolved: 35 },
-                    { month: 'Nisan', total: 61, resolved: 58 },
-                    { month: 'Mayıs', total: 49, resolved: 45 },
-                    { month: 'Haziran', total: 56, resolved: 50 }
-                ],
-                defectTypes: [
-                    { type: 'Yüzey Hatası', count: 45, percentage: 32 },
-                    { type: 'Ölçüsel Hata', count: 38, percentage: 27 },
-                    { type: 'Montaj Hatası', count: 29, percentage: 21 },
-                    { type: 'Malzeme Hatası', count: 28, percentage: 20 }
-                ],
-                resolutionTime: {
-                    average: '2.4 saat',
-                    fastest: '0.5 saat',
-                    slowest: '8.2 saat'
+        
+        function updateActiveButton(activeGroup) {
+            const buttons = filterButtonsContainer.querySelectorAll('button');
+            buttons.forEach(button => {
+                button.classList.remove('bg-gradient-to-r', 'from-blue-500', 'to-teal-400', 'text-white', 'shadow-lg', 'shadow-blue-500/30');
+                button.classList.add('bg-gray-700', 'text-gray-300', 'hover:bg-gray-600');
+                if (button.dataset.group === activeGroup) {
+                    button.classList.remove('bg-gray-700', 'text-gray-300', 'hover:bg-gray-600');
+                    button.classList.add('bg-gradient-to-r', 'from-blue-500', 'to-teal-400', 'text-white', 'shadow-lg', 'shadow-blue-500/30');
                 }
             });
+        }
+        
+        function displayExercises(muscleGroup) {
+            exerciseGrid.innerHTML = '';
+            const filteredExercises = muscleGroup === 'Tümü'
+                ? exercises
+                : exercises.filter(ex => ex.muscleGroup === muscleGroup);
+            
+            noResultsMessage.classList.toggle('hidden', filteredExercises.length > 0);
 
-            return (
-                <div>
-                    <h1>Analitik Raporlar</h1>
-                    
-                    <div className="stats-grid">
-                        <div className="stat-card">
-                            <div className="stat-number">94%</div>
-                            <div>Çözüm Oranı</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">{analyticsData.resolutionTime.average}</div>
-                            <div>Ortalama Çözüm Süresi</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">301</div>
-                            <div>Bu Ay Toplam</div>
-                        </div>
-                        <div className="stat-card">
-                            <div className="stat-number">18</div>
-                            <div>Aktif Rapor</div>
-                        </div>
+            filteredExercises.forEach(exercise => {
+                const card = document.createElement('div');
+                card.className = 'bg-gray-800 rounded-lg overflow-hidden shadow-lg transform hover:-translate-y-2 transition-transform duration-300 cursor-pointer group';
+                card.innerHTML = `
+                    <div class="relative">
+                        <img src="${exercise.gifUrl}" alt="${exercise.name}" class="w-full h-48 object-cover">
+                        <div class="absolute inset-0 bg-black bg-opacity-20 group-hover:bg-opacity-40 transition-all duration-300"></div>
                     </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-                        <div className="card">
-                            <h3>Aylık Rapor Trendi</h3>
-                            <div style={{ height: '300px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', padding: '2rem 0' }}>
-                                {analyticsData.reportsByMonth.map((month, index) => (
-                                    <div key={index} style={{ textAlign: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', marginBottom: '0.5rem', height: '200px' }}>
-                                            <div
-                                                style={{
-                                                    width: '20px',
-                                                    height: `${(month.total / 70) * 200}px`,
-                                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                                    borderRadius: '4px'
-                                                }}
-                                                title={`Toplam: ${month.total}`}
-                                            ></div>
-                                            <div
-                                                style={{
-                                                    width: '20px',
-                                                    height: `${(month.resolved / 70) * 200}px`,
-                                                    background: '#10b981',
-                                                    borderRadius: '4px'
-                                                }}
-                                                title={`Çözülen: ${month.resolved}`}
-                                            ></div>
-                                        </div>
-                                        <div style={{ fontSize: '0.875rem', fontWeight: '600' }}>{month.month}</div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '1rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{ width: '20px', height: '12px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '2px' }}></div>
-                                    <span>Toplam</span>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <div style={{ width: '20px', height: '12px', background: '#10b981', borderRadius: '2px' }}></div>
-                                    <span>Çözülen</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="card">
-                            <h3>Hata Türü Dağılımı</h3>
-                            <div style={{ marginTop: '2rem' }}>
-                                {analyticsData.defectTypes.map((defect, index) => (
-                                    <div key={index} style={{ marginBottom: '1.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                            <span style={{ fontSize: '0.875rem', fontWeight: '600' }}>{defect.type}</span>
-                                            <span style={{ fontSize: '0.875rem' }}>{defect.count} ({defect.percentage}%)</span>
-                                        </div>
-                                        <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
-                                            <div
-                                                style={{
-                                                    width: `${defect.percentage}%`,
-                                                    height: '100%',
-                                                    background: `linear-gradient(90deg, hsl(${240 + index * 30}, 70%, 60%) 0%, hsl(${260 + index * 30}, 70%, 70%) 100%)`,
-                                                    transition: 'width 0.5s ease'
-                                                }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+                    <div class="p-4">
+                        <h3 class="text-lg font-semibold text-white">${exercise.name}</h3>
+                        <p class="text-sm text-blue-400">${exercise.muscleGroup}</p>
                     </div>
+                `;
+                card.addEventListener('click', () => openModal(exercise));
+                exerciseGrid.appendChild(card);
+            });
+        }
+        
+        function openModal(exercise) {
+            document.getElementById('modal-title').textContent = exercise.name;
+            document.getElementById('modal-muscle-group').textContent = exercise.muscleGroup;
+            document.getElementById('modal-gif').src = exercise.gifUrl;
+            
+            const instructionsList = document.getElementById('modal-instructions');
+            instructionsList.innerHTML = '';
+            exercise.instructions.forEach(step => {
+                const li = document.createElement('li');
+                li.innerHTML = `<i class="fas fa-check-circle text-blue-400 mr-2"></i>${step}`;
+                instructionsList.appendChild(li);
+            });
 
-                    <div className="card">
-                        <h3>Performans Metrikleri</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem', marginTop: '2rem' }}>
-                            <div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#667eea' }}>
-                                    {analyticsData.resolutionTime.average}
-                                </div>
-                                <div style={{ color: '#6b7280' }}>Ortalama Çözüm Süresi</div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#10b981' }}>
-                                    {analyticsData.resolutionTime.fastest}
-                                </div>
-                                <div style={{ color: '#6b7280' }}>En Hızlı Çözüm</div>
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#f59e0b' }}>
-                                    {analyticsData.resolutionTime.slowest}
-                                </div>
-                                <div style={{ color: '#6b7280' }}>En Yavaş Çözüm</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                 modalContent.classList.remove('scale-95', 'opacity-0');
+                 modalContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
         }
 
-        // Main App Component
-        function App() {
-            const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState('dashboard');
-            const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+        function closeModal() {
+            modalContent.classList.add('scale-95', 'opacity-0');
+            modalContent.classList.remove('scale-100', 'opacity-100');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
 
-            const handleLogin = (userData) => {
-                setUser(userData);
-            };
-
-            const handleLogout = () => {
-                setUser(null);
-                setActiveTab('dashboard');
-            };
-
-            const onReportCreated = (newReport) => {
-                // In real app, this would be sent to backend
-                console.log('New report created:', newReport);
-            };
-
-            if (!user) {
-                return <LoginForm onLogin={handleLogin} />;
+        function updateAuthStateUI() {
+            if (isLoggedIn) {
+                authButtons.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                userInfo.classList.add('flex');
+                userGreeting.textContent = `Hoş geldin, ${currentUserName}!`;
+            } else {
+                authButtons.classList.remove('hidden');
+                userInfo.classList.add('hidden');
+                userInfo.classList.remove('flex');
             }
-
-            const navigation = [
-                { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt', component: Dashboard },
-                { id: 'new-report', label: 'Yeni Rapor', icon: 'fas fa-plus-circle', component: NewReport },
-                { id: 'reports', label: 'Raporlar', icon: 'fas fa-list-alt', component: ReportsList },
-                { id: 'chat', label: 'Mesajlaşma', icon: 'fas fa-comments', component: Chat },
-                { id: 'analytics', label: 'Analitik', icon: 'fas fa-chart-bar', component: Analytics }
-            ];
-
-            const ActiveComponent = navigation.find(nav => nav.id === activeTab)?.component || Dashboard;
-
-            return (
-                <div className="app-container">
-                    <div className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-                        <div className="sidebar-header">
-                            <div className="logo">
-                                <i className="fas fa-industry"></i>
-                                {!sidebarCollapsed && <span>Factory System</span>}
-                            </div>
-                        </div>
-                        
-                        <nav>
-                            {navigation.map(nav => (
-                                <div
-                                    key={nav.id}
-                                    className={`nav-item ${activeTab === nav.id ? 'active' : ''}`}
-                                    onClick={() => setActiveTab(nav.id)}
-                                >
-                                    <i className={nav.icon}></i>
-                                    {!sidebarCollapsed && <span>{nav.label}</span>}
-                                </div>
-                            ))}
-                        </nav>
-                        
-                        <div style={{ marginTop: 'auto', padding: '1rem 2rem' }}>
-                            <div
-                                className="nav-item"
-                                onClick={handleLogout}
-                                style={{ color: '#ef4444' }}
-                            >
-                                <i className="fas fa-sign-out-alt"></i>
-                                {!sidebarCollapsed && <span>Çıkış</span>}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="main-content">
-                        <div className="header">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <button
-                                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                                    className="btn btn-primary"
-                                    style={{ padding: '0.5rem', background: 'transparent', color: '#667eea' }}
-                                >
-                                    <i className="fas fa-bars"></i>
-                                </button>
-                                <h2 style={{ margin: 0 }}>
-                                    {navigation.find(nav => nav.id === activeTab)?.label || 'Dashboard'}
-                                </h2>
-                            </div>
-                            
-                            <div className="user-info">
-                                <span>{user.firstName} {user.lastName}</span>
-                                <div className="user-avatar">
-                                    {user.firstName[0]}{user.lastName[0]}
-                                </div>
-                            </div>
-                        </div>
-
-                        <ActiveComponent user={user} onReportCreated={onReportCreated} />
-                    </div>
-                </div>
-            );
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        function openLoginModal() {
+            loginModal.classList.remove('hidden');
+            loginModal.classList.add('flex');
+            setTimeout(() => {
+                 loginModalContent.classList.remove('scale-95', 'opacity-0');
+            }, 50);
+        }
+
+        function closeLoginModal() {
+            loginModalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                loginModal.classList.add('hidden');
+                loginModal.classList.remove('flex');
+            }, 300);
+        }
+        
+        function openRegisterModal() {
+            registerModal.classList.remove('hidden');
+            registerModal.classList.add('flex');
+            setTimeout(() => {
+                 registerModalContent.classList.remove('scale-95', 'opacity-0');
+            }, 50);
+        }
+
+        function closeRegisterModal() {
+            registerModalContent.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                registerModal.classList.add('hidden');
+                registerModal.classList.remove('flex');
+            }, 300);
+        }
+
+        async function generateWorkoutPlan() {
+            openGeminiModal();
+            geminiPlanContainer.innerHTML = '<div class="flex justify-center items-center h-full"><div class="loader"></div></div>';
+            geminiPlanBtn.disabled = true;
+
+            const apiKey = ""; // API anahtarı boş bırakılmalıdır.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const muscleGroup = activeFilter === 'Tümü' ? 'tüm vücut' : activeFilter;
+            const userQuery = `Bir fitness uzmanı gibi davran. Bana başlangıç seviyesi için bir ${muscleGroup} antrenman programı oluştur. Programda ısınma, ana hareketler (set ve tekrar sayılarıyla) ve soğuma adımları bulunsun. Cevabı HTML formatında, başlıklar için <h3>, listeler için <ul> ve <li> etiketleri kullanarak düzenli bir şekilde hazırla.`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+            };
+            
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API hatası: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    const generatedText = candidate.content.parts[0].text;
+                    let htmlText = generatedText
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                        .replace(/### (.*?)\n/g, '<h3>$1</h3>')
+                        .replace(/^- (.*?)\n/gm, '<li>$1</li>')
+                        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+
+                    geminiPlanContainer.innerHTML = htmlText;
+                } else {
+                    geminiPlanContainer.innerHTML = '<p class="text-red-400">Yapay zekadan bir cevap alınamadı. Lütfen daha sonra tekrar deneyin.</p>';
+                }
+
+            } catch (error) {
+                console.error("Gemini API çağrısı başarısız:", error);
+                geminiPlanContainer.innerHTML = `<p class="text-red-400">Bir hata oluştu: ${error.message}. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.</p>`;
+            } finally {
+                geminiPlanBtn.disabled = false;
+            }
+        }
+
+        function openGeminiModal() {
+            geminiModal.classList.remove('hidden');
+            geminiModal.classList.add('flex');
+            setTimeout(() => {
+                 geminiModalContent.classList.remove('scale-95', 'opacity-0');
+                 geminiModalContent.classList.add('scale-100', 'opacity-100');
+            }, 50);
+        }
+
+        function closeGeminiModal() {
+            geminiModalContent.classList.add('scale-95', 'opacity-0');
+            geminiModalContent.classList.remove('scale-100', 'opacity-100');
+            setTimeout(() => {
+                geminiModal.classList.add('hidden');
+                geminiModal.classList.remove('flex');
+            }, 300);
+        }
+
+        // --- EVENT LISTENERS ---
+        loginBtn.addEventListener('click', openLoginModal);
+        loginModalBackdrop.addEventListener('click', closeLoginModal);
+        
+        registerBtn.addEventListener('click', openRegisterModal);
+        registerModalBackdrop.addEventListener('click', closeRegisterModal);
+
+        goToRegister.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeLoginModal();
+            setTimeout(openRegisterModal, 350);
+        });
+        
+        goToLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeRegisterModal();
+            setTimeout(openLoginModal, 350);
+        });
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            currentUserName = document.getElementById('login-email').value.split('@')[0];
+            isLoggedIn = true;
+            closeLoginModal();
+            updateAuthStateUI();
+        });
+
+        registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            currentUserName = document.getElementById('register-name').value;
+            isLoggedIn = true;
+            closeRegisterModal();
+            updateAuthStateUI();
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            isLoggedIn = false;
+            currentUserName = '';
+            updateAuthStateUI();
+        });
+
+        closeModalBtn.addEventListener('click', closeModal);
+        modalBackdrop.addEventListener('click', closeModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
+
+        geminiPlanBtn.addEventListener('click', generateWorkoutPlan);
+        closeGeminiModalBtn.addEventListener('click', closeGeminiModal);
+        geminiModalBackdrop.addEventListener('click', closeGeminiModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !geminiModal.classList.contains('hidden')) {
+                closeGeminiModal();
+            }
+        });
     </script>
+
 </body>
 </html>
+
