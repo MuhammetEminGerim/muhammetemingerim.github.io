@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>IPTV Pro Oynatıcı</title>
     
     <!-- Tailwind CSS (Tasarım için) -->
@@ -38,6 +38,11 @@
         .video-container {
             transition: all 0.3s ease-in-out;
         }
+
+        /* Mobilde dokunma efekti */
+        .touch-manipulation {
+            touch-action: manipulation;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 overflow-hidden">
@@ -47,7 +52,7 @@
 
     <!-- React Kodları -->
     <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
         // --- IKON BILEŞENLERI (External Library Yerine Dahili SVG'ler) ---
         const IconBase = ({ children, size = 24, className = "" }) => (
@@ -70,6 +75,7 @@
         const Loader2 = (props) => <IconBase {...props} className={props.className + " animate-spin"}><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></IconBase>;
         const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></IconBase>;
         const Trash2 = (props) => <IconBase {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></IconBase>;
+        const Menu = (props) => <IconBase {...props}><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></IconBase>;
 
         // --- ANA UYGULAMA ---
         function App() {
@@ -94,10 +100,12 @@
             const [isPlaying, setIsPlaying] = useState(false);
             const [isMuted, setIsMuted] = useState(false);
             const [isCinemaMode, setIsCinemaMode] = useState(false);
+            const [showControls, setShowControls] = useState(true); // Mobilde kontrolleri yönetmek için
             
             const videoRef = useRef(null);
             const hlsRef = useRef(null);
             const containerRef = useRef(null);
+            const controlsTimeoutRef = useRef(null);
 
             // Kanallar değişince LocalStorage'a kaydet
             useEffect(() => {
@@ -109,6 +117,26 @@
                     console.warn("LocalStorage kotası aşıldı veya hata oluştu, liste kaydedilemedi.");
                 }
             }, [channels]);
+
+            // Kontrollerin otomatik gizlenmesi (Mobil için kritik)
+            const resetControlsTimeout = useCallback(() => {
+                setShowControls(true);
+                if (controlsTimeoutRef.current) {
+                    clearTimeout(controlsTimeoutRef.current);
+                }
+                if (isPlaying) {
+                    controlsTimeoutRef.current = setTimeout(() => {
+                        setShowControls(false);
+                    }, 3000);
+                }
+            }, [isPlaying]);
+
+            useEffect(() => {
+                resetControlsTimeout();
+                return () => {
+                    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+                }
+            }, [isPlaying, resetControlsTimeout]);
 
             // Listeyi temizleme fonksiyonu
             const handleClearPlaylist = () => {
@@ -127,32 +155,42 @@
                 if (!video || !currentChannel) return;
 
                 const playStream = () => {
+                    // HLS ve hata yönetimi
+                    const handleError = (e, data) => {
+                         if (data.fatal) {
+                            console.error("HLS Hatası:", data);
+                            if(data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+                                console.log("Ağ hatası, yeniden deneniyor...");
+                                hls.startLoad();
+                            } else {
+                                setError("Yayın yüklenemedi. Yayın kaynağı çevrimdışı olabilir veya tarayıcıda oynatmaya (CORS) izin vermiyor olabilir.");
+                            }
+                        }
+                    };
+
                     if (window.Hls && window.Hls.isSupported()) {
                         if (hlsRef.current) {
                             hlsRef.current.destroy();
                         }
                         
-                        const hls = new window.Hls();
+                        const hls = new window.Hls({
+                            enableWorker: true,
+                            lowLatencyMode: true,
+                        });
                         hlsRef.current = hls;
                         
                         hls.loadSource(currentChannel.url);
                         hls.attachMedia(video);
                         
                         hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-                            video.play().catch(e => console.log("Otomatik oynatma engellendi, kullanıcı etkileşimi gerekli."));
+                            video.play().catch(e => {
+                                console.log("Otomatik oynatma engellendi, kullanıcı etkileşimi gerekli.");
+                                setShowControls(true);
+                            });
                             setIsPlaying(true);
                         });
 
-                        hls.on(window.Hls.Events.ERROR, (event, data) => {
-                            if (data.fatal) {
-                                console.error("HLS Hatası:", data);
-                                if(data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
-                                    hls.startLoad();
-                                } else {
-                                    setError("Yayın yüklenirken hata oluştu (CORS veya geçersiz akış).");
-                                }
-                            }
-                        });
+                        hls.on(window.Hls.Events.ERROR, handleError);
 
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         // Safari native HLS desteği
@@ -161,6 +199,7 @@
                             video.play();
                             setIsPlaying(true);
                         });
+                        video.addEventListener('error', () => setError("Video formatı desteklenmiyor veya kaynak erişilemez."));
                     } else {
                         setError("Tarayıcınız bu video formatını desteklemiyor.");
                     }
@@ -180,6 +219,10 @@
                 const handleFullscreenChange = () => {
                     if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
                         setIsCinemaMode(false);
+                        // iOS için native player'dan çıkıldığında:
+                        if (videoRef.current && videoRef.current.paused) {
+                           setIsPlaying(false);
+                        }
                     }
                 };
 
@@ -196,30 +239,35 @@
                 };
             }, []);
 
-            // M3U Parser
+            // M3U Parser (Geliştirilmiş)
             const parseM3U = (content) => {
-                const lines = content.split('\n');
+                const lines = content.split(/\r?\n/); 
                 const parsedChannels = [];
                 let currentChannel = {};
 
-                lines.forEach(line => {
-                    line = line.trim();
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (!line) continue;
+
                     if (line.startsWith('#EXTINF:')) {
-                        const info = line.substring(8);
-                        const parts = info.split(',');
-                        currentChannel.name = parts[parts.length - 1].trim();
+                        const commaIndex = line.lastIndexOf(',');
+                        if (commaIndex !== -1) {
+                            currentChannel.name = line.substring(commaIndex + 1).trim();
+                        } else {
+                            currentChannel.name = "Bilinmeyen Kanal";
+                        }
                         const logoMatch = line.match(/tvg-logo="([^"]*)"/);
                         if (logoMatch) currentChannel.logo = logoMatch[1];
                         const groupMatch = line.match(/group-title="([^"]*)"/);
                         currentChannel.group = groupMatch ? groupMatch[1] : 'Genel';
-                    } else if (line.startsWith('http') || line.startsWith('rtmp')) {
+                    } else if (!line.startsWith('#') && (line.startsWith('http') || line.startsWith('rtmp'))) {
                         currentChannel.url = line;
                         if (currentChannel.name && currentChannel.url) {
                             parsedChannels.push({ ...currentChannel, id: Math.random().toString(36).substr(2, 9) });
-                            currentChannel = {};
+                            currentChannel = {}; 
                         }
                     }
-                });
+                }
                 return parsedChannels;
             };
 
@@ -227,23 +275,40 @@
                 e.preventDefault();
                 if (!playlistUrl) return;
 
+                if (window.location.protocol === 'https:' && playlistUrl.startsWith('http:')) {
+                    const proceed = confirm("UYARI: Güvenli bir sayfadasınız (HTTPS) ancak güvenli olmayan bir link (HTTP) yüklemeye çalışıyorsunuz. Tarayıcı bunu engelleyebilir. Devam edilsin mi?");
+                    if (!proceed) return;
+                }
+
                 setIsLoading(true);
                 setError(null);
 
+                const fetchPlaylist = async (url) => {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP Hata: ${response.status}`);
+                    return await response.text();
+                };
+
                 try {
-                    const response = await fetch(playlistUrl);
-                    if (!response.ok) throw new Error('Dosya indirilemedi.');
-                    const text = await response.text();
-                    const loadedChannels = parseM3U(text);
-                    
-                    if (loadedChannels.length === 0) {
-                        throw new Error('Geçerli kanal bulunamadı.');
+                    let text;
+                    try {
+                        console.log("Direkt bağlantı deneniyor...");
+                        text = await fetchPlaylist(playlistUrl);
+                    } catch (directError) {
+                        console.warn("Direkt bağlantı başarısız, CORS Proxy deneniyor...", directError);
+                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(playlistUrl)}`;
+                        text = await fetchPlaylist(proxyUrl);
                     }
 
+                    const loadedChannels = parseM3U(text);
+                    if (loadedChannels.length === 0) {
+                        throw new Error('Dosya indirildi ancak içinde geçerli kanal bulunamadı.');
+                    }
                     setChannels(loadedChannels);
                     setSelectedGroup('Tümü');
                 } catch (err) {
-                    setError('Playlist yüklenemedi. URL\'in herkese açık olduğundan ve CORS izinlerinin verildiğinden emin olun. Veya dosyayı indirip yükleyin.');
+                    console.error(err);
+                    setError('Liste yüklenemedi. Linkin doğru olduğundan emin olun. Eğer link tarayıcıda çalışmıyorsa "CORS" (Erişim İzni) sorunu olabilir.');
                 } finally {
                     setIsLoading(false);
                 }
@@ -304,6 +369,7 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
 
             // Video Kontrolleri
             const togglePlay = () => {
+                resetControlsTimeout();
                 if (videoRef.current) {
                     if (isPlaying) videoRef.current.pause();
                     else videoRef.current.play();
@@ -312,6 +378,7 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
             };
 
             const toggleMute = () => {
+                resetControlsTimeout();
                 if (videoRef.current) {
                     videoRef.current.muted = !isMuted;
                     setIsMuted(!isMuted);
@@ -319,8 +386,15 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
             };
 
             const toggleFullscreen = async () => {
+                resetControlsTimeout();
                 try {
                     if (!document.fullscreenElement && !isCinemaMode) {
+                        // iOS için özel kontrol: Video elementini tam ekran yap
+                        if (videoRef.current && videoRef.current.webkitEnterFullscreen) {
+                             videoRef.current.webkitEnterFullscreen();
+                             return; // iOS native player'ı açtığı için burada duruyoruz
+                        }
+
                         if (containerRef.current) {
                             if (containerRef.current.requestFullscreen) {
                                 await containerRef.current.requestFullscreen();
@@ -345,6 +419,16 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                     setIsCinemaMode(!isCinemaMode);
                 }
             };
+
+            // Video alanına tıklayınca kontrolleri aç/kapa
+            const handleVideoTap = () => {
+                if(window.innerWidth < 768) { // Sadece mobilde
+                    setShowControls(!showControls);
+                    resetControlsTimeout();
+                } else {
+                    togglePlay();
+                }
+            }
 
             return (
                 <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
@@ -380,10 +464,13 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                             </button>
                           </form>
 
+                          {/* accept="*" mobilde "Dosyalarım"ı açar. 
+                             accept=".m3u" bazı androidlerde sadece "medya" arar.
+                          */}
                           <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors">
                             <Upload size={16} />
                             <span className="hidden sm:inline">Dosya Yükle</span>
-                            <input type="file" accept=".m3u,.m3u8" className="hidden" onChange={handleFileUpload} />
+                            <input type="file" accept=".m3u,.m3u8,text/*" className="hidden" onChange={handleFileUpload} />
                           </label>
                         </div>
                     </header>
@@ -495,17 +582,25 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                                 relative bg-black flex items-center justify-center group video-container
                                 ${isCinemaMode ? 'fixed inset-0 z-50 w-screen h-screen' : 'w-full h-full'}
                               `}
+                              onMouseMove={resetControlsTimeout}
+                              onClick={handleVideoTap}
                             >
                               <video 
                                 ref={videoRef}
                                 className="w-full h-full object-contain"
                                 poster={currentChannel.logo}
-                                onClick={togglePlay}
                                 autoPlay
                                 playsInline
                               />
                               
-                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 py-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-50">
+                              {/* Custom Controls Overlay */}
+                              <div 
+                                className={`
+                                    absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 py-4 transition-opacity duration-300 z-50
+                                    ${showControls ? 'opacity-100' : 'opacity-0'}
+                                `}
+                                onClick={(e) => e.stopPropagation()} // Kontrollere tıklayınca videoTap çalışmasın
+                              >
                                 <div className="w-full h-1 bg-slate-600 rounded-full mb-4 overflow-hidden">
                                   <div className="h-full bg-blue-500 w-full animate-pulse"></div>
                                 </div>
@@ -537,8 +632,8 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
 
                               {isCinemaMode && (
                                 <button 
-                                   onClick={() => setIsCinemaMode(false)}
-                                   className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+                                   onClick={(e) => { e.stopPropagation(); setIsCinemaMode(false); }}
+                                   className={`absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-all ${showControls ? 'opacity-100' : 'opacity-0'}`}
                                 >
                                   <X size={24} />
                                 </button>
@@ -550,7 +645,7 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                                     <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
                                     <h3 className="text-xl font-bold text-white mb-2">Yayın Oynatılamadı</h3>
                                     <p className="text-slate-400 mb-4 text-sm">{error}</p>
-                                    <p className="text-xs text-slate-600">Not: Bazı IPTV yayınları web tarayıcılarında çalışmaz (CORS engeli).</p>
+                                    <p className="text-xs text-slate-600">Not: Bazı IPTV yayınları web tarayıcılarında çalışmaz (CORS engeli) veya yayın kaynağı çevrimdışı olabilir.</p>
                                     <button 
                                       onClick={() => setError(null)}
                                       className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
