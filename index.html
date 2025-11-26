@@ -43,6 +43,29 @@
         .touch-manipulation {
             touch-action: manipulation;
         }
+
+        /* Ses Slider Özelleştirmesi */
+        input[type=range] {
+            height: 4px;
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -4px; /* Chrome için ortalama */
+        }
+        input[type=range]::-moz-range-thumb {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: none;
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 overflow-hidden">
@@ -99,13 +122,17 @@
             const [isSidebarOpen, setIsSidebarOpen] = useState(true);
             const [isPlaying, setIsPlaying] = useState(false);
             const [isMuted, setIsMuted] = useState(false);
+            const [volume, setVolume] = useState(1); // Ses seviyesi (0-1)
             const [isCinemaMode, setIsCinemaMode] = useState(false);
-            const [showControls, setShowControls] = useState(true); // Mobilde kontrolleri yönetmek için
+            const [showControls, setShowControls] = useState(true); 
             
             const videoRef = useRef(null);
             const hlsRef = useRef(null);
             const containerRef = useRef(null);
             const controlsTimeoutRef = useRef(null);
+            
+            const lastTapRef = useRef(0);
+            const tapTimeoutRef = useRef(null);
 
             // Kanallar değişince LocalStorage'a kaydet
             useEffect(() => {
@@ -118,7 +145,7 @@
                 }
             }, [channels]);
 
-            // Kontrollerin otomatik gizlenmesi (Mobil için kritik)
+            // Kontrollerin otomatik gizlenmesi
             const resetControlsTimeout = useCallback(() => {
                 setShowControls(true);
                 if (controlsTimeoutRef.current) {
@@ -138,7 +165,6 @@
                 }
             }, [isPlaying, resetControlsTimeout]);
 
-            // Listeyi temizleme fonksiyonu
             const handleClearPlaylist = () => {
                 if (confirm('Tüm kanal listesi silinecek. Emin misiniz?')) {
                     setChannels([]);
@@ -154,8 +180,11 @@
                 const video = videoRef.current;
                 if (!video || !currentChannel) return;
 
+                // Ses seviyesini ayarla
+                video.volume = volume;
+                video.muted = isMuted;
+
                 const playStream = () => {
-                    // HLS ve hata yönetimi
                     const handleError = (e, data) => {
                          if (data.fatal) {
                             console.error("HLS Hatası:", data);
@@ -193,7 +222,6 @@
                         hls.on(window.Hls.Events.ERROR, handleError);
 
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        // Safari native HLS desteği
                         video.src = currentChannel.url;
                         video.addEventListener('loadedmetadata', () => {
                             video.play();
@@ -219,7 +247,6 @@
                 const handleFullscreenChange = () => {
                     if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
                         setIsCinemaMode(false);
-                        // iOS için native player'dan çıkıldığında:
                         if (videoRef.current && videoRef.current.paused) {
                            setIsPlaying(false);
                         }
@@ -239,7 +266,7 @@
                 };
             }, []);
 
-            // M3U Parser (Geliştirilmiş)
+            // M3U Parser
             const parseM3U = (content) => {
                 const lines = content.split(/\r?\n/); 
                 const parsedChannels = [];
@@ -350,7 +377,6 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                 setChannels(loadedChannels);
             };
 
-            // Filtreleme
             const groups = useMemo(() => {
                 const g = ['Tümü'];
                 channels.forEach(ch => {
@@ -384,15 +410,29 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                     setIsMuted(!isMuted);
                 }
             };
+            
+            // Ses Slider İşleyici
+            const handleVolumeChange = (e) => {
+                resetControlsTimeout();
+                const newVolume = parseFloat(e.target.value);
+                setVolume(newVolume);
+                
+                if (videoRef.current) {
+                    videoRef.current.volume = newVolume;
+                    if (newVolume > 0 && isMuted) {
+                        videoRef.current.muted = false;
+                        setIsMuted(false);
+                    }
+                }
+            };
 
             const toggleFullscreen = async () => {
                 resetControlsTimeout();
                 try {
                     if (!document.fullscreenElement && !isCinemaMode) {
-                        // iOS için özel kontrol: Video elementini tam ekran yap
                         if (videoRef.current && videoRef.current.webkitEnterFullscreen) {
                              videoRef.current.webkitEnterFullscreen();
-                             return; // iOS native player'ı açtığı için burada duruyoruz
+                             return; 
                         }
 
                         if (containerRef.current) {
@@ -420,15 +460,29 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                 }
             };
 
-            // Video alanına tıklayınca kontrolleri aç/kapa
-            const handleVideoTap = () => {
-                if(window.innerWidth < 768) { // Sadece mobilde
-                    setShowControls(!showControls);
-                    resetControlsTimeout();
+            const handleVideoTap = (e) => {
+                if (window.innerWidth < 768) {
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapRef.current;
+                    
+                    if (tapLength < 300 && tapLength > 0) {
+                        if (tapTimeoutRef.current) {
+                            clearTimeout(tapTimeoutRef.current);
+                            tapTimeoutRef.current = null;
+                        }
+                        toggleFullscreen();
+                    } else {
+                        tapTimeoutRef.current = setTimeout(() => {
+                            setShowControls(prev => !prev);
+                            resetControlsTimeout();
+                            tapTimeoutRef.current = null;
+                        }, 300);
+                    }
+                    lastTapRef.current = currentTime;
                 } else {
                     togglePlay();
                 }
-            }
+            };
 
             return (
                 <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
@@ -464,9 +518,6 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                             </button>
                           </form>
 
-                          {/* accept="*" mobilde "Dosyalarım"ı açar. 
-                             accept=".m3u" bazı androidlerde sadece "medya" arar.
-                          */}
                           <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors">
                             <Upload size={16} />
                             <span className="hidden sm:inline">Dosya Yükle</span>
@@ -584,6 +635,7 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                               `}
                               onMouseMove={resetControlsTimeout}
                               onClick={handleVideoTap}
+                              onDoubleClick={() => window.innerWidth >= 768 && toggleFullscreen()} 
                             >
                               <video 
                                 ref={videoRef}
@@ -599,7 +651,7 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                                     absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 py-4 transition-opacity duration-300 z-50
                                     ${showControls ? 'opacity-100' : 'opacity-0'}
                                 `}
-                                onClick={(e) => e.stopPropagation()} // Kontrollere tıklayınca videoTap çalışmasın
+                                onClick={(e) => e.stopPropagation()} 
                               >
                                 <div className="w-full h-1 bg-slate-600 rounded-full mb-4 overflow-hidden">
                                   <div className="h-full bg-blue-500 w-full animate-pulse"></div>
@@ -611,9 +663,21 @@ http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
                                       {isPlaying ? <Pause size={24} /> : <Play size={24} /> }
                                     </button>
                                     
-                                    <button onClick={toggleMute} className="text-white hover:text-blue-400 transition-colors">
-                                      {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-                                    </button>
+                                    {/* SES KONTROLLERİ */}
+                                    <div className="flex items-center gap-2 group/volume">
+                                        <button onClick={toggleMute} className="text-white hover:text-blue-400 transition-colors">
+                                            {isMuted || volume === 0 ? <VolumeX size={24} /> : <Volume2 size={24} />}
+                                        </button>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="1" 
+                                            step="0.05" 
+                                            value={isMuted ? 0 : volume} 
+                                            onChange={handleVolumeChange}
+                                            className="w-20 md:w-24 h-1.5 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
+                                        />
+                                    </div>
 
                                     <div className="flex flex-col ml-2">
                                       <span className="text-white font-medium drop-shadow-md">{currentChannel.name}</span>
