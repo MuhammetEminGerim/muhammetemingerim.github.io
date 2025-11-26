@@ -1,187 +1,245 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Play, Upload, Search, List, Tv, AlertCircle, Volume2, VolumeX, Maximize, Pause, Loader2, X, Minimize } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPTV Pro Oynatıcı</title>
+    
+    <!-- Tailwind CSS (Tasarım için) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React ve ReactDOM (Çekirdek kütüphaneler) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel (JSX kodunu tarayıcının anlaması için çevirici) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- HLS.js (Video oynatıcı motoru) -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
-export default function App() {
-  const [playlistUrl, setPlaylistUrl] = useState('');
-  const [channels, setChannels] = useState([]);
-  const [currentChannel, setCurrentChannel] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('Tümü');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCinemaMode, setIsCinemaMode] = useState(false); // Yedek tam ekran modu için state
-  
-  const videoRef = useRef(null);
-  const hlsRef = useRef(null);
-  const containerRef = useRef(null);
-
-  // HLS.js'i dinamik olarak yükle
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = "https://cdn.jsdelivr.net/npm/hls.js@latest";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
-  // Video oynatma mantığı
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !currentChannel) return;
-
-    const playStream = () => {
-      if (window.Hls && window.Hls.isSupported()) {
-        if (hlsRef.current) {
-          hlsRef.current.destroy();
+    <style>
+        /* Özel Kaydırma Çubuğu Stilleri */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
         }
         
-        const hls = new window.Hls();
-        hlsRef.current = hls;
-        
-        hls.loadSource(currentChannel.url);
-        hls.attachMedia(video);
-        
-        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
-          video.play().catch(e => console.log("Otomatik oynatma engellendi, kullanıcı etkileşimi gerekli."));
-          setIsPlaying(true);
-        });
-
-        hls.on(window.Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-             console.error("HLS Hatası:", data);
-             if(data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
-                hls.startLoad();
-             } else {
-                setError("Yayın yüklenirken hata oluştu (CORS veya geçersiz akış).");
-             }
-          }
-        });
-
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Safari native HLS desteği
-        video.src = currentChannel.url;
-        video.addEventListener('loadedmetadata', () => {
-          video.play();
-          setIsPlaying(true);
-        });
-      } else {
-        setError("Tarayıcınız bu video formatını desteklemiyor.");
-      }
-    };
-
-    playStream();
-
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-      }
-    };
-  }, [currentChannel]);
-
-  // Fullscreen değişikliklerini dinle (ESC tuşu ile çıkılırsa state'i güncellemek için)
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
-        setIsCinemaMode(false);
-      }
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
-
-  // M3U Parser
-  const parseM3U = (content) => {
-    const lines = content.split('\n');
-    const parsedChannels = [];
-    let currentChannel = {};
-
-    lines.forEach(line => {
-      line = line.trim();
-      if (line.startsWith('#EXTINF:')) {
-        const info = line.substring(8);
-        const parts = info.split(',');
-        currentChannel.name = parts[parts.length - 1].trim();
-        const logoMatch = line.match(/tvg-logo="([^"]*)"/);
-        if (logoMatch) currentChannel.logo = logoMatch[1];
-        const groupMatch = line.match(/group-title="([^"]*)"/);
-        currentChannel.group = groupMatch ? groupMatch[1] : 'Genel';
-      } else if (line.startsWith('http') || line.startsWith('rtmp')) {
-        currentChannel.url = line;
-        if (currentChannel.name && currentChannel.url) {
-          parsedChannels.push({ ...currentChannel, id: Math.random().toString(36).substr(2, 9) });
-          currentChannel = {};
+        /* Tam ekran geçişleri için animasyon */
+        .video-container {
+            transition: all 0.3s ease-in-out;
         }
-      }
-    });
-    return parsedChannels;
-  };
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 overflow-hidden">
+    
+    <!-- Uygulamanın Bağlanacağı Kök Element -->
+    <div id="root"></div>
 
-  const handleUrlSubmit = async (e) => {
-    e.preventDefault();
-    if (!playlistUrl) return;
+    <!-- React Kodları -->
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
 
-    setIsLoading(true);
-    setError(null);
+        // --- IKON BILEŞENLERI (External Library Yerine Dahili SVG'ler) ---
+        const IconBase = ({ children, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                {children}
+            </svg>
+        );
 
-    try {
-      const response = await fetch(playlistUrl);
-      if (!response.ok) throw new Error('Dosya indirilemedi.');
-      const text = await response.text();
-      const loadedChannels = parseM3U(text);
-      
-      if (loadedChannels.length === 0) {
-        throw new Error('Geçerli kanal bulunamadı.');
-      }
+        const Play = (props) => <IconBase {...props}><polygon points="5 3 19 12 5 21 5 3"></polygon></IconBase>;
+        const Pause = (props) => <IconBase {...props}><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></IconBase>;
+        const Upload = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></IconBase>;
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></IconBase>;
+        const List = (props) => <IconBase {...props}><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></IconBase>;
+        const Tv = (props) => <IconBase {...props}><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></IconBase>;
+        const AlertCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></IconBase>;
+        const Volume2 = (props) => <IconBase {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></IconBase>;
+        const VolumeX = (props) => <IconBase {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></IconBase>;
+        const Maximize = (props) => <IconBase {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></IconBase>;
+        const Minimize = (props) => <IconBase {...props}><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></IconBase>;
+        const Loader2 = (props) => <IconBase {...props} className={props.className + " animate-spin"}><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></IconBase>;
+        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></IconBase>;
 
-      setChannels(loadedChannels);
-      setSelectedGroup('Tümü');
-    } catch (err) {
-      setError('Playlist yüklenemedi. URL\'in herkese açık olduğundan ve CORS izinlerinin verildiğinden emin olun. Veya dosyayı indirip yükleyin.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        // --- ANA UYGULAMA ---
+        function App() {
+            const [playlistUrl, setPlaylistUrl] = useState('');
+            const [channels, setChannels] = useState([]);
+            const [currentChannel, setCurrentChannel] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedGroup, setSelectedGroup] = useState('Tümü');
+            const [isLoading, setIsLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [isMuted, setIsMuted] = useState(false);
+            const [isCinemaMode, setIsCinemaMode] = useState(false);
+            
+            const videoRef = useRef(null);
+            const hlsRef = useRef(null);
+            const containerRef = useRef(null);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+            // Video oynatma mantığı
+            useEffect(() => {
+                const video = videoRef.current;
+                if (!video || !currentChannel) return;
 
-    setIsLoading(true);
-    setError(null);
+                const playStream = () => {
+                    if (window.Hls && window.Hls.isSupported()) {
+                        if (hlsRef.current) {
+                            hlsRef.current.destroy();
+                        }
+                        
+                        const hls = new window.Hls();
+                        hlsRef.current = hls;
+                        
+                        hls.loadSource(currentChannel.url);
+                        hls.attachMedia(video);
+                        
+                        hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                            video.play().catch(e => console.log("Otomatik oynatma engellendi, kullanıcı etkileşimi gerekli."));
+                            setIsPlaying(true);
+                        });
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const loadedChannels = parseM3U(event.target.result);
-        setChannels(loadedChannels);
-        setSelectedGroup('Tümü');
-      } catch (err) {
-        setError('Dosya okunamadı.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    reader.readAsText(file);
-  };
+                        hls.on(window.Hls.Events.ERROR, (event, data) => {
+                            if (data.fatal) {
+                                console.error("HLS Hatası:", data);
+                                if(data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+                                    hls.startLoad();
+                                } else {
+                                    setError("Yayın yüklenirken hata oluştu (CORS veya geçersiz akış).");
+                                }
+                            }
+                        });
 
-  const handleLoadTestPlaylist = () => {
-    const testM3U = `
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        // Safari native HLS desteği
+                        video.src = currentChannel.url;
+                        video.addEventListener('loadedmetadata', () => {
+                            video.play();
+                            setIsPlaying(true);
+                        });
+                    } else {
+                        setError("Tarayıcınız bu video formatını desteklemiyor.");
+                    }
+                };
+
+                playStream();
+
+                return () => {
+                    if (hlsRef.current) {
+                        hlsRef.current.destroy();
+                    }
+                };
+            }, [currentChannel]);
+
+            // Fullscreen değişikliklerini dinle
+            useEffect(() => {
+                const handleFullscreenChange = () => {
+                    if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
+                        setIsCinemaMode(false);
+                    }
+                };
+
+                document.addEventListener('fullscreenchange', handleFullscreenChange);
+                document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+                document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+                document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+                return () => {
+                    document.removeEventListener('fullscreenchange', handleFullscreenChange);
+                    document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+                    document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+                    document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+                };
+            }, []);
+
+            // M3U Parser
+            const parseM3U = (content) => {
+                const lines = content.split('\n');
+                const parsedChannels = [];
+                let currentChannel = {};
+
+                lines.forEach(line => {
+                    line = line.trim();
+                    if (line.startsWith('#EXTINF:')) {
+                        const info = line.substring(8);
+                        const parts = info.split(',');
+                        currentChannel.name = parts[parts.length - 1].trim();
+                        const logoMatch = line.match(/tvg-logo="([^"]*)"/);
+                        if (logoMatch) currentChannel.logo = logoMatch[1];
+                        const groupMatch = line.match(/group-title="([^"]*)"/);
+                        currentChannel.group = groupMatch ? groupMatch[1] : 'Genel';
+                    } else if (line.startsWith('http') || line.startsWith('rtmp')) {
+                        currentChannel.url = line;
+                        if (currentChannel.name && currentChannel.url) {
+                            parsedChannels.push({ ...currentChannel, id: Math.random().toString(36).substr(2, 9) });
+                            currentChannel = {};
+                        }
+                    }
+                });
+                return parsedChannels;
+            };
+
+            const handleUrlSubmit = async (e) => {
+                e.preventDefault();
+                if (!playlistUrl) return;
+
+                setIsLoading(true);
+                setError(null);
+
+                try {
+                    const response = await fetch(playlistUrl);
+                    if (!response.ok) throw new Error('Dosya indirilemedi.');
+                    const text = await response.text();
+                    const loadedChannels = parseM3U(text);
+                    
+                    if (loadedChannels.length === 0) {
+                        throw new Error('Geçerli kanal bulunamadı.');
+                    }
+
+                    setChannels(loadedChannels);
+                    setSelectedGroup('Tümü');
+                } catch (err) {
+                    setError('Playlist yüklenemedi. URL\'in herkese açık olduğundan ve CORS izinlerinin verildiğinden emin olun. Veya dosyayı indirip yükleyin.');
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleFileUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setIsLoading(true);
+                setError(null);
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const loadedChannels = parseM3U(event.target.result);
+                        setChannels(loadedChannels);
+                        setSelectedGroup('Tümü');
+                    } catch (err) {
+                        setError('Dosya okunamadı.');
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const handleLoadTestPlaylist = () => {
+                const testM3U = `
 #EXTM3U
 #EXTINF:-1 tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Big_buck_bunny_poster_big.jpg/800px-Big_buck_bunny_poster_big.jpg" group-title="Animasyon",Big Buck Bunny
 https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
@@ -189,315 +247,303 @@ https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
 https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8
 #EXTINF:-1 group-title="Spor",Tears of Steel (Test)
 http://content.jwplatform.com/manifests/vM7nH0Kl.m3u8
-    `;
-    const loadedChannels = parseM3U(testM3U);
-    setChannels(loadedChannels);
-  };
+                `;
+                const loadedChannels = parseM3U(testM3U);
+                setChannels(loadedChannels);
+            };
 
-  // Filtreleme ve Gruplama
-  const groups = useMemo(() => {
-    const g = ['Tümü'];
-    channels.forEach(ch => {
-      if (ch.group && !g.includes(ch.group)) g.push(ch.group);
-    });
-    return g.sort();
-  }, [channels]);
+            // Filtreleme
+            const groups = useMemo(() => {
+                const g = ['Tümü'];
+                channels.forEach(ch => {
+                    if (ch.group && !g.includes(ch.group)) g.push(ch.group);
+                });
+                return g.sort();
+            }, [channels]);
 
-  const filteredChannels = useMemo(() => {
-    return channels.filter(ch => {
-      const matchesSearch = ch.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesGroup = selectedGroup === 'Tümü' || ch.group === selectedGroup;
-      return matchesSearch && matchesGroup;
-    });
-  }, [channels, searchTerm, selectedGroup]);
+            const filteredChannels = useMemo(() => {
+                return channels.filter(ch => {
+                    const matchesSearch = ch.name.toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchesGroup = selectedGroup === 'Tümü' || ch.group === selectedGroup;
+                    return matchesSearch && matchesGroup;
+                });
+            }, [channels, searchTerm, selectedGroup]);
 
-  // Video Kontrolleri
-  const togglePlay = () => {
-    if (videoRef.current) {
-      if (isPlaying) videoRef.current.pause();
-      else videoRef.current.play();
-      setIsPlaying(!isPlaying);
-    }
-  };
+            // Video Kontrolleri
+            const togglePlay = () => {
+                if (videoRef.current) {
+                    if (isPlaying) videoRef.current.pause();
+                    else videoRef.current.play();
+                    setIsPlaying(!isPlaying);
+                }
+            };
 
-  const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-      setIsMuted(!isMuted);
-    }
-  };
+            const toggleMute = () => {
+                if (videoRef.current) {
+                    videoRef.current.muted = !isMuted;
+                    setIsMuted(!isMuted);
+                }
+            };
 
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement && !isCinemaMode) {
-        // Tam ekrana girmeyi dene
-        if (containerRef.current) {
-           // Önce standart API dene
-          if (containerRef.current.requestFullscreen) {
-            await containerRef.current.requestFullscreen();
-          } else if (containerRef.current.webkitRequestFullscreen) { /* Safari */
-            await containerRef.current.webkitRequestFullscreen();
-          } else if (containerRef.current.msRequestFullscreen) { /* IE11 */
-            await containerRef.current.msRequestFullscreen();
-          } else {
-            // Hiçbir API yoksa direkt cinema moduna geç
-            setIsCinemaMode(true);
-          }
+            const toggleFullscreen = async () => {
+                try {
+                    if (!document.fullscreenElement && !isCinemaMode) {
+                        if (containerRef.current) {
+                            if (containerRef.current.requestFullscreen) {
+                                await containerRef.current.requestFullscreen();
+                            } else if (containerRef.current.webkitRequestFullscreen) {
+                                await containerRef.current.webkitRequestFullscreen();
+                            } else {
+                                setIsCinemaMode(true);
+                            }
+                        }
+                    } else {
+                        if (document.exitFullscreen) {
+                            if (document.fullscreenElement) {
+                                await document.exitFullscreen();
+                            }
+                        } else if (document.webkitExitFullscreen && document.webkitFullscreenElement) {
+                            await document.webkitExitFullscreen();
+                        }
+                        setIsCinemaMode(false);
+                    }
+                } catch (err) {
+                    console.warn("Fullscreen API engellendi, Cinema Mode'a geçiliyor:", err);
+                    setIsCinemaMode(!isCinemaMode);
+                }
+            };
+
+            return (
+                <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
+                    {/* Header */}
+                    <header className="h-16 border-b border-slate-800 bg-slate-900 flex items-center px-4 justify-between shrink-0 z-20">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-600 p-2 rounded-lg">
+                                <Tv size={20} className="text-white" />
+                            </div>
+                            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text hidden sm:block">
+                                IPTV Pro Oynatıcı
+                            </h1>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                           <button 
+                            onClick={handleLoadTestPlaylist}
+                            className="text-xs text-blue-400 hover:text-blue-300 underline mr-2 hidden md:block"
+                          >
+                            Test Listesi Yükle
+                          </button>
+
+                          <form onSubmit={handleUrlSubmit} className="hidden md:flex relative group">
+                            <input 
+                              type="text" 
+                              placeholder="M3U URL'si yapıştır..." 
+                              className="bg-slate-800 border border-slate-700 rounded-l-lg px-4 py-2 text-sm w-64 focus:outline-none focus:border-blue-500 focus:w-80 transition-all duration-300"
+                              value={playlistUrl}
+                              onChange={(e) => setPlaylistUrl(e.target.value)}
+                            />
+                            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-r-lg text-sm font-medium transition-colors">
+                              Yükle
+                            </button>
+                          </form>
+
+                          <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors">
+                            <Upload size={16} />
+                            <span className="hidden sm:inline">Dosya Yükle</span>
+                            <input type="file" accept=".m3u,.m3u8" className="hidden" onChange={handleFileUpload} />
+                          </label>
+                        </div>
+                    </header>
+
+                    {/* Main Content */}
+                    <div className="flex flex-1 overflow-hidden relative">
+                        
+                        {/* Sidebar */}
+                        <aside 
+                          className={`
+                            ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full opacity-0'} 
+                            bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ease-in-out absolute md:relative z-10 h-full
+                          `}
+                        >
+                          <div className="p-4 border-b border-slate-800 space-y-3">
+                            <div className="relative">
+                              <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
+                              <input 
+                                type="text" 
+                                placeholder="Kanal ara..." 
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 text-slate-200"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                              />
+                            </div>
+                            
+                            <select 
+                              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none text-slate-300"
+                              value={selectedGroup}
+                              onChange={(e) => setSelectedGroup(e.target.value)}
+                            >
+                              {groups.map(group => (
+                                <option key={group} value={group}>{group}</option>
+                              ))}
+                            </select>
+                            
+                            <div className="text-xs text-slate-500 flex justify-between">
+                              <span>{filteredChannels.length} Kanal bulundu</span>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            {isLoading ? (
+                              <div className="flex flex-col items-center justify-center h-40 gap-2 text-slate-500">
+                                <Loader2 className="text-slate-500" size={32} />
+                                <span>Yükleniyor...</span>
+                              </div>
+                            ) : channels.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center h-64 text-center p-6 text-slate-500">
+                                <List size={48} className="mb-4 opacity-20" />
+                                <p>Oynatma listesi boş.</p>
+                                <p className="text-sm mt-2">Sağ üstten dosya yükleyin veya URL girin.</p>
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-slate-800">
+                                {filteredChannels.map(channel => (
+                                  <button
+                                    key={channel.id}
+                                    onClick={() => {
+                                      setCurrentChannel(channel);
+                                      setError(null);
+                                      if (window.innerWidth < 768) setIsSidebarOpen(false);
+                                    }}
+                                    className={`w-full text-left p-3 hover:bg-slate-800 transition-colors flex items-center gap-3 group ${currentChannel?.id === channel.id ? 'bg-blue-900/30 border-l-4 border-blue-500' : 'border-l-4 border-transparent'}`}
+                                  >
+                                    <div className="w-10 h-10 bg-slate-800 rounded flex items-center justify-center shrink-0 overflow-hidden">
+                                      {channel.logo ? (
+                                        <img src={channel.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.style.display='none'} />
+                                      ) : (
+                                        <Tv size={18} className="text-slate-600" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className={`font-medium truncate ${currentChannel?.id === channel.id ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}`}>
+                                        {channel.name}
+                                      </p>
+                                      <p className="text-xs text-slate-500 truncate">{channel.group}</p>
+                                    </div>
+                                    {currentChannel?.id === channel.id && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 animate-pulse" />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </aside>
+
+                        {/* Player Area */}
+                        <main className="flex-1 flex flex-col relative bg-black">
+                          <button 
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            className="absolute left-4 top-4 z-10 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-all"
+                          >
+                            {isSidebarOpen ? <X size={20} /> : <List size={20} />}
+                          </button>
+
+                          {currentChannel ? (
+                            <div 
+                              ref={containerRef} 
+                              className={`
+                                relative bg-black flex items-center justify-center group video-container
+                                ${isCinemaMode ? 'fixed inset-0 z-50 w-screen h-screen' : 'w-full h-full'}
+                              `}
+                            >
+                              <video 
+                                ref={videoRef}
+                                className="w-full h-full object-contain"
+                                poster={currentChannel.logo}
+                                onClick={togglePlay}
+                                autoPlay
+                                playsInline
+                              />
+                              
+                              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 py-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-50">
+                                <div className="w-full h-1 bg-slate-600 rounded-full mb-4 overflow-hidden">
+                                  <div className="h-full bg-blue-500 w-full animate-pulse"></div>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <button onClick={togglePlay} className="text-white hover:text-blue-400 transition-colors">
+                                      {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                                    </button>
+                                    
+                                    <button onClick={toggleMute} className="text-white hover:text-blue-400 transition-colors">
+                                      {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
+                                    </button>
+
+                                    <div className="flex flex-col ml-2">
+                                      <span className="text-white font-medium drop-shadow-md">{currentChannel.name}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                                        <span className="text-xs text-slate-300 drop-shadow-md">CANLI</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <button onClick={toggleFullscreen} className="text-white hover:text-blue-400 transition-colors">
+                                    {isCinemaMode ? <Minimize size={24} /> : <Maximize size={24} />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {isCinemaMode && (
+                                <button 
+                                   onClick={() => setIsCinemaMode(false)}
+                                   className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+                                >
+                                  <X size={24} />
+                                </button>
+                              )}
+
+                              {error && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
+                                  <div className="bg-slate-900 p-6 rounded-xl border border-red-900/50 max-w-md text-center">
+                                    <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+                                    <h3 className="text-xl font-bold text-white mb-2">Yayın Oynatılamadı</h3>
+                                    <p className="text-slate-400 mb-4 text-sm">{error}</p>
+                                    <p className="text-xs text-slate-600">Not: Bazı IPTV yayınları web tarayıcılarında çalışmaz (CORS engeli).</p>
+                                    <button 
+                                      onClick={() => setError(null)}
+                                      className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
+                                    >
+                                      Kapat
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-950">
+                              <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                                <Tv size={48} className="text-slate-700" />
+                              </div>
+                              <h2 className="text-2xl font-bold text-slate-300 mb-2">İzlemeye Başlamak İçin Kanal Seçin</h2>
+                              <p className="max-w-md text-center text-slate-500 mb-8">
+                                Sol menüden bir kanal seçin veya yeni bir M3U listesi yükleyin.
+                              </p>
+                              <button 
+                                onClick={handleLoadTestPlaylist}
+                                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-all transform hover:scale-105"
+                              >
+                                Örnek Listeyi Dene
+                              </button>
+                            </div>
+                          )}
+                        </main>
+                    </div>
+                </div>
+            );
         }
-      } else {
-        // Tam ekrandan çık
-        if (document.exitFullscreen) {
-           // Eğer gerçek tam ekrandaysa çıkmayı dene
-           if (document.fullscreenElement) {
-             await document.exitFullscreen();
-           }
-        } else if (document.webkitExitFullscreen && document.webkitFullscreenElement) {
-          await document.webkitExitFullscreen();
-        }
-        
-        // Her durumda cinema modunu kapat
-        setIsCinemaMode(false);
-      }
-    } catch (err) {
-      console.warn("Fullscreen API engellendi, Cinema Mode'a geçiliyor:", err);
-      // Hata alınırsa (izin verilmiyorsa) CSS bazlı tam ekrana (Cinema Mode) geç
-      setIsCinemaMode(!isCinemaMode);
-    }
-  };
 
-  return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
-      {/* Header */}
-      <header className="h-16 border-b border-slate-800 bg-slate-900 flex items-center px-4 justify-between shrink-0 z-20">
-        <div className="flex items-center gap-2">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <Tv size={20} className="text-white" />
-          </div>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 text-transparent bg-clip-text hidden sm:block">
-            IPTV Pro Oynatıcı
-          </h1>
-        </div>
-
-        <div className="flex items-center gap-3">
-           <button 
-            onClick={handleLoadTestPlaylist}
-            className="text-xs text-blue-400 hover:text-blue-300 underline mr-2 hidden md:block"
-          >
-            Test Listesi Yükle
-          </button>
-
-          <form onSubmit={handleUrlSubmit} className="hidden md:flex relative group">
-            <input 
-              type="text" 
-              placeholder="M3U URL'si yapıştır..." 
-              className="bg-slate-800 border border-slate-700 rounded-l-lg px-4 py-2 text-sm w-64 focus:outline-none focus:border-blue-500 focus:w-80 transition-all duration-300"
-              value={playlistUrl}
-              onChange={(e) => setPlaylistUrl(e.target.value)}
-            />
-            <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-r-lg text-sm font-medium transition-colors">
-              Yükle
-            </button>
-          </form>
-
-          <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors">
-            <Upload size={16} />
-            <span className="hidden sm:inline">Dosya Yükle</span>
-            <input type="file" accept=".m3u,.m3u8" className="hidden" onChange={handleFileUpload} />
-          </label>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden relative">
-        
-        {/* Sidebar (Channel List) */}
-        <aside 
-          className={`
-            ${isSidebarOpen ? 'w-80 translate-x-0' : 'w-0 -translate-x-full opacity-0'} 
-            bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 ease-in-out absolute md:relative z-10 h-full
-          `}
-        >
-          {/* Search & Filter */}
-          <div className="p-4 border-b border-slate-800 space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
-              <input 
-                type="text" 
-                placeholder="Kanal ara..." 
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-blue-500 text-slate-200"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            
-            <select 
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none text-slate-300"
-              value={selectedGroup}
-              onChange={(e) => setSelectedGroup(e.target.value)}
-            >
-              {groups.map(group => (
-                <option key={group} value={group}>{group}</option>
-              ))}
-            </select>
-            
-            <div className="text-xs text-slate-500 flex justify-between">
-              <span>{filteredChannels.length} Kanal bulundu</span>
-            </div>
-          </div>
-
-          {/* List */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center h-40 gap-2 text-slate-500">
-                <Loader2 className="animate-spin" />
-                <span>Yükleniyor...</span>
-              </div>
-            ) : channels.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-center p-6 text-slate-500">
-                <List size={48} className="mb-4 opacity-20" />
-                <p>Oynatma listesi boş.</p>
-                <p className="text-sm mt-2">Sağ üstten dosya yükleyin veya URL girin.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-800">
-                {filteredChannels.map(channel => (
-                  <button
-                    key={channel.id}
-                    onClick={() => {
-                      setCurrentChannel(channel);
-                      setError(null);
-                      // Mobilde kanal seçince sidebarı kapat
-                      if (window.innerWidth < 768) setIsSidebarOpen(false);
-                    }}
-                    className={`w-full text-left p-3 hover:bg-slate-800 transition-colors flex items-center gap-3 group ${currentChannel?.id === channel.id ? 'bg-blue-900/30 border-l-4 border-blue-500' : 'border-l-4 border-transparent'}`}
-                  >
-                    <div className="w-10 h-10 bg-slate-800 rounded flex items-center justify-center shrink-0 overflow-hidden">
-                      {channel.logo ? (
-                        <img src={channel.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.style.display='none'} />
-                      ) : (
-                        <Tv size={18} className="text-slate-600" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium truncate ${currentChannel?.id === channel.id ? 'text-blue-400' : 'text-slate-300 group-hover:text-white'}`}>
-                        {channel.name}
-                      </p>
-                      <p className="text-xs text-slate-500 truncate">{channel.group}</p>
-                    </div>
-                    {currentChannel?.id === channel.id && <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0 animate-pulse" />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </aside>
-
-        {/* Player Area */}
-        <main className="flex-1 flex flex-col relative bg-black">
-          {/* Toggle Sidebar Button */}
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="absolute left-4 top-4 z-10 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-all"
-          >
-            {isSidebarOpen ? <X size={20} /> : <List size={20} />}
-          </button>
-
-          {currentChannel ? (
-            <div 
-              ref={containerRef} 
-              className={`
-                relative bg-black flex items-center justify-center group
-                ${isCinemaMode ? 'fixed inset-0 z-50 w-screen h-screen' : 'w-full h-full'}
-              `}
-            >
-              <video 
-                ref={videoRef}
-                className="w-full h-full object-contain"
-                poster={currentChannel.logo}
-                onClick={togglePlay}
-                autoPlay
-                playsInline
-              />
-              
-              {/* Custom Controls Overlay */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-6 py-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-50">
-                {/* Progress Bar */}
-                <div className="w-full h-1 bg-slate-600 rounded-full mb-4 overflow-hidden">
-                  <div className="h-full bg-blue-500 w-full animate-pulse"></div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <button onClick={togglePlay} className="text-white hover:text-blue-400 transition-colors">
-                      {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-                    </button>
-                    
-                    <button onClick={toggleMute} className="text-white hover:text-blue-400 transition-colors">
-                      {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-                    </button>
-
-                    <div className="flex flex-col ml-2">
-                      <span className="text-white font-medium drop-shadow-md">{currentChannel.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                        <span className="text-xs text-slate-300 drop-shadow-md">CANLI</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button onClick={toggleFullscreen} className="text-white hover:text-blue-400 transition-colors">
-                    {isCinemaMode ? <Minimize size={24} /> : <Maximize size={24} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Close Button for Cinema Mode */}
-              {isCinemaMode && (
-                <button 
-                   onClick={() => setIsCinemaMode(false)}
-                   className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/80 text-white p-2 rounded-full backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
-                >
-                  <X size={24} />
-                </button>
-              )}
-
-              {/* Error Message */}
-              {error && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
-                  <div className="bg-slate-900 p-6 rounded-xl border border-red-900/50 max-w-md text-center">
-                    <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-white mb-2">Yayın Oynatılamadı</h3>
-                    <p className="text-slate-400 mb-4 text-sm">{error}</p>
-                    <p className="text-xs text-slate-600">Not: Bazı IPTV yayınları web tarayıcılarında çalışmaz (CORS engeli). Lütfen yayının HTTPS olduğundan emin olun.</p>
-                    <button 
-                      onClick={() => setError(null)}
-                      className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors"
-                    >
-                      Kapat
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-950">
-              <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center mb-6 animate-pulse">
-                <Tv size={48} className="text-slate-700" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-300 mb-2">İzlemeye Başlamak İçin Kanal Seçin</h2>
-              <p className="max-w-md text-center text-slate-500 mb-8">
-                Sol menüden bir kanal seçin veya yeni bir M3U listesi yükleyin.
-              </p>
-              <button 
-                onClick={handleLoadTestPlaylist}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-all transform hover:scale-105"
-              >
-                Örnek Listeyi Dene
-              </button>
-            </div>
-          )}
-        </main>
-      </div>
-    </div>
-  );
-}
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
