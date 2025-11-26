@@ -207,6 +207,9 @@
                         }
                     };
 
+                    // Eğer URL bir IPTV TS/MKV stream ise (m3u8 değilse) direkt video src'ye verelim
+                    // Ancak HLS.js genellikle m3u8 bekler.
+                    
                     if (window.Hls && window.Hls.isSupported()) {
                         if (hlsRef.current) {
                             hlsRef.current.destroy();
@@ -312,40 +315,70 @@
                 e.preventDefault();
                 if (!playlistUrl) return;
 
+                // Kullanıcı HTTP linki HTTPS sitede açmaya çalışıyorsa uyaralım ama engellemeyelim, proxy deneyeceğiz.
+                let useProxy = false;
                 if (window.location.protocol === 'https:' && playlistUrl.startsWith('http:')) {
-                    const proceed = confirm("UYARI: Güvenli bir sayfadasınız (HTTPS) ancak güvenli olmayan bir link (HTTP) yüklemeye çalışıyorsunuz. Tarayıcı bunu engelleyebilir. Devam edilsin mi?");
-                    if (!proceed) return;
+                    useProxy = true; 
+                    // Uyarı vermeye gerek yok, direkt proxy deneyeceğiz.
                 }
 
                 setIsLoading(true);
                 setError(null);
 
-                const fetchPlaylist = async (url) => {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP Hata: ${response.status}`);
-                    return await response.text();
+                // GÜÇLENDİRİLMİŞ PROXY ZİNCİRİ
+                const fetchWithProxies = async (targetUrl) => {
+                    const proxies = [
+                        // 1. Direkt (Eğer HTTPS ise ve CORS varsa)
+                        (url) => url,
+                        // 2. CorsProxy.io (Çok güçlü ve hızlıdır, büyük dosyaları destekler)
+                        (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                        // 3. AllOrigins (Yedek, bazen yavaş olabilir)
+                        (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                        // 4. CodeTabs (Son çare)
+                        (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+                    ];
+
+                    let lastError;
+
+                    // Eğer HTTP -> HTTPS durumu varsa direkt bağlantıyı (0. index) atla
+                    const startIndex = (window.location.protocol === 'https:' && targetUrl.startsWith('http:')) ? 1 : 0;
+
+                    for (let i = startIndex; i < proxies.length; i++) {
+                        const proxyUrl = proxies[i](targetUrl);
+                        console.log(`Bağlantı deneniyor (${i + 1}/${proxies.length}):`, proxyUrl);
+                        
+                        try {
+                            const response = await fetch(proxyUrl);
+                            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                            const text = await response.text();
+                            
+                            // Basit bir M3U kontrolü (dosya boş mu değil mi)
+                            if (text.length > 10 && (text.includes('#EXTM3U') || text.includes('http'))) {
+                                return text; // Başarılı!
+                            } else {
+                                throw new Error('Geçersiz içerik alındı.');
+                            }
+                        } catch (err) {
+                            console.warn(`Proxy ${i + 1} başarısız:`, err);
+                            lastError = err;
+                            // Bir sonraki proxy'e geç
+                        }
+                    }
+                    throw lastError || new Error("Tüm bağlantı yöntemleri başarısız oldu.");
                 };
 
                 try {
-                    let text;
-                    try {
-                        console.log("Direkt bağlantı deneniyor...");
-                        text = await fetchPlaylist(playlistUrl);
-                    } catch (directError) {
-                        console.warn("Direkt bağlantı başarısız, CORS Proxy deneniyor...", directError);
-                        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(playlistUrl)}`;
-                        text = await fetchPlaylist(proxyUrl);
-                    }
-
+                    const text = await fetchWithProxies(playlistUrl);
                     const loadedChannels = parseM3U(text);
+                    
                     if (loadedChannels.length === 0) {
-                        throw new Error('Dosya indirildi ancak içinde geçerli kanal bulunamadı.');
+                        throw new Error('Dosya indirildi ancak içinde geçerli kanal formatı bulunamadı. Linkin M3U formatında olduğundan emin olun.');
                     }
                     setChannels(loadedChannels);
                     setSelectedGroup('Tümü');
                 } catch (err) {
                     console.error(err);
-                    setError('Liste yüklenemedi. Linkin doğru olduğundan emin olun. Eğer link tarayıcıda çalışmıyorsa "CORS" (Erişim İzni) sorunu olabilir.');
+                    setError(`Liste yüklenemedi: ${err.message}. Linkin süresi dolmuş olabilir veya sunucu yanıt vermiyor.`);
                 } finally {
                     setIsLoading(false);
                 }
