@@ -16,6 +16,10 @@
         href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap"
         rel="stylesheet">
 
+    <!-- Custom Favicon: Terminal Prompt -->
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><rect width=%2216%22 height=%2216%22 fill=%22%230d0d0d%22/><text x=%223%22 y=%2211%22 fill=%22%2300FF41%22 font-family=%22monospace%22 font-weight=%22bold%22 font-size=%2212%22>%3E_</text></svg>">
+
     <!-- GSAP -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
@@ -50,6 +54,8 @@
             background-color: #0d0d0d;
             color: #E0E0E0;
             cursor: crosshair;
+            overflow-x: hidden;
+            /* Prevent horizontal scroll */
         }
 
         /* Scanlines */
@@ -102,18 +108,33 @@
             image-rendering: pixelated;
         }
 
-        /* Layout Grid Lines */
+        /* Layout Grid Lines - RESPONSIVE FIX */
         .grid-layout {
             display: grid;
-            grid-template-columns: repeat(12, 1fr);
+            grid-template-columns: 1fr;
+            /* Default Mobile: Single Column */
             border-left: 1px solid #333;
             border-top: 1px solid #333;
+        }
+
+        /* Desktop: Switch to 12 Columns */
+        @media (min-width: 768px) {
+            .grid-layout {
+                grid-template-columns: repeat(12, 1fr);
+            }
         }
 
         .grid-cell {
             border-right: 1px solid #333;
             border-bottom: 1px solid #333;
-            padding: 2rem;
+            padding: 1.5rem;
+            /* Slightly reduced padding on mobile */
+        }
+
+        @media (min-width: 768px) {
+            .grid-cell {
+                padding: 2rem;
+            }
         }
 
         /* Blinking Cursor (Dynamic) */
@@ -175,11 +196,12 @@
     <main class="min-h-screen grid-layout border-b border-[#333]">
 
         <!-- HEADER -->
-        <header class="col-span-12 grid grid-cols-12 border-b border-[#333]">
+        <header
+            class="grid-layout-item col-span-12 md:col-span-12 grid grid-cols-12 border-b md:border-b-0 border-[#333]">
             <div class="col-span-6 md:col-span-4 border-r border-[#333] p-4 flex items-center gap-2">
                 <div class="w-2 h-2 bg-neon-green animate-pulse"></div>
                 <!-- Humble Title -->
-                <span class="text-xs uppercase pixel-font font-bold">EMIN_SYSTEMS.v2</span>
+                <span class="text-xs uppercase pixel-font font-bold">EMİN_SYSTEMS.v2</span>
             </div>
             <div
                 class="col-span-6 md:col-span-8 p-4 flex justify-end items-center bg-checker bg-[length:4px_4px] opacity-20">
@@ -189,7 +211,7 @@
 
         <!-- HERO SECTION -->
         <section
-            class="col-span-12 md:col-span-8 lg:col-span-9 grid-cell min-h-[60vh] flex flex-col justify-center relative overflow-hidden group">
+            class="grid-layout-item col-span-12 md:col-span-8 lg:col-span-9 grid-cell min-h-[50vh] md:min-h-[60vh] flex flex-col justify-center relative overflow-hidden group">
 
             <div class="uppercase text-xs mb-4 text-[#666]">
                 // USER: Muhammet Emin Gerim<br>
@@ -198,16 +220,16 @@
 
             <!-- TYPEWRITER CONTAINER -->
             <h1
-                class="font-pixel text-3xl md:text-5xl lg:text-7xl leading-tight mb-8 relative z-10 mix-blend-difference min-h-[120px]">
+                class="font-pixel text-2xl md:text-5xl lg:text-7xl leading-tight mb-8 relative z-10 mix-blend-difference min-h-[80px] md:min-h-[120px]">
                 <span id="typewriter-1"></span><br>
                 <span id="typewriter-2" class="text-neon-green"></span><span class="cursor-blink"></span>
             </h1>
 
-            <p class="max-w-xl text-lg font-bold leading-relaxed text-[#999] mb-8">
+            <p class="max-w-xl text-sm md:text-lg font-bold leading-relaxed text-[#999] mb-8">
                 <span class="text-white">"Augmenting my development with AI."</span>
             </p>
 
-            <p class="max-w-md text-sm text-[#666] border-l-2 border-neon-green pl-4">
+            <p class="max-w-md text-xs md:text-sm text-[#666] border-l-2 border-neon-green pl-4">
                 I'm a Junior Developer passionate about building systems.
                 I use <span class="text-white">AI tools</span> to code faster and learn deeper, focusing on delivering
                 solid results.
@@ -216,12 +238,13 @@
         </section>
 
         <!-- SIDEBAR / STATS -->
-        <aside class="col-span-12 md:col-span-4 lg:col-span-3 grid-cell flex flex-col justify-between bg-[#111]">
+        <aside
+            class="grid-layout-item col-span-12 md:col-span-4 lg:col-span-3 grid-cell flex flex-col justify-between bg-[#111]">
             <div>
                 <div
                     class="w-full aspect-square border-2 border-[#333] mb-8 bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden group">
                     <span
-                        class="font-pixel text-6xl text-[#222] group-hover:text-neon-green transition-colors">MEG</span>
+                        class="font-pixel text-4xl md:text-6xl text-[#222] group-hover:text-neon-green transition-colors">MEG</span>
                     <div class="absolute inset-0 bg-checker opacity-10"></div>
                     <!-- AI Badge (Subtle) -->
                     <div
@@ -229,7 +252,7 @@
                         AI+</div>
                 </div>
 
-                <div class="space-y-4 font-terminal text-xl">
+                <div class="space-y-4 font-terminal text-lg md:text-xl">
                     <div class="flex justify-between border-b border-[#333] pb-1">
                         <span class="text-[#666]">LOC:</span>
                         <span>TR-14</span>
@@ -257,14 +280,15 @@
         </aside>
 
         <!-- TICKER TAPE -->
-        <div class="col-span-12 border-t border-b border-[#333] overflow-hidden bg-neon-green text-black py-2">
+        <div
+            class="grid-layout-item col-span-12 border-t border-b border-[#333] overflow-hidden bg-neon-green text-black py-2">
             <div class="marquee whitespace-nowrap font-pixel text-xs animate-[marquee_10s_linear_infinite]">
                 +++ AI-ASSISTED DEVELOPMENT +++ OPEN TO OPPORTUNITIES +++ C# DEVELOPMENT +++ FULL STACK LEARNER +++
             </div>
         </div>
 
         <!-- WORK EXPERIENCE -->
-        <div class="col-span-12 md:col-span-4 grid-cell bg-[#111]">
+        <div class="grid-layout-item col-span-12 md:col-span-4 grid-cell bg-[#111]">
             <h2 class="font-pixel text-lg mb-8 text-[#999] flex items-center gap-2">
                 <span class="w-2 h-2 bg-neon-green block"></span> EXPERIENCE
             </h2>
@@ -294,9 +318,9 @@
         </div>
 
         <!-- REAL PROJECTS -->
-        <div class="col-span-12 md:col-span-8 grid grid-cols-1 md:grid-cols-2">
+        <div class="grid-layout-item col-span-12 md:col-span-8 grid grid-cols-1 md:grid-cols-2">
 
-            <div class="col-span-2 border-b border-[#333] p-8">
+            <div class="col-span-1 md:col-span-2 border-b border-[#333] p-8">
                 <h2 class="font-pixel text-lg text-[#999] flex items-center gap-2">
                     <span class="w-2 h-2 bg-neon-green block"></span> FEATURED PROJECTS
                 </h2>
@@ -375,7 +399,7 @@
         </div>
 
         <!-- EDUCATION -->
-        <section class="col-span-12 grid-cell bg-[#0c0c0c]">
+        <section class="grid-layout-item col-span-12 grid-cell bg-[#0c0c0c]">
             <h2 class="font-pixel text-xl mb-8 text-[#999]">EDUCATION_LOG:</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 font-mono">
                 <div class="border border-[#333] p-4 relative">
@@ -395,7 +419,7 @@
 
         <!-- CONTACT FOOTER -->
         <footer id="contact"
-            class="col-span-12 grid-cell flex flex-col justify-center items-center text-center relative border-b-0 py-20 bg-[#080808]">
+            class="grid-layout-item col-span-12 grid-cell flex flex-col justify-center items-center text-center relative border-b-0 py-20 bg-[#080808]">
             <p class="font-terminal text-xl text-neon-green mb-4 animate-pulse">>>> INITIATE_COMMUNICATION</p>
             <a href="mailto:muhammetemingerim@outlook.com"
                 class="font-pixel text-xl md:text-3xl lg:text-4xl hover:text-neon-green transition-transform break-all border-b-2 border-white/20 hover:border-neon-green pb-2">
@@ -408,7 +432,6 @@
             <div class="flex gap-8 mt-8">
                 <a href="https://linkedin.com/in/muhammet-emin-gerim-990398268" target="_blank"
                     class="pixel-btn px-4 py-2 border border-[#333] uppercase text-xs">LinkedIn</a>
-                <a href="#" class="pixel-btn px-4 py-2 border border-[#333] uppercase text-xs">GitHub</a>
             </div>
 
             <!-- TERMINAL EASTER EGG -->
